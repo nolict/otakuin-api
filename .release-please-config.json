@@ -1,7 +1,7 @@
 {
   "packages": {
     ".": {
-      "package-name": "dibo",
+      "package-name": "otakuin",
       "release-type": "node",
       "initial-version": "0.0.1",
       "changelog-sections": [
