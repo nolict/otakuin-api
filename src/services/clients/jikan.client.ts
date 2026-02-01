@@ -1,5 +1,5 @@
-import type { JikanAnimeData, JikanResponse } from '../types/jikan';
-import type { ScraperResult } from '../types/anime';
+import type { ScraperResult } from '../../types/anime';
+import type { JikanAnimeData, JikanResponse } from '../../types/jikan';
 
 const JIKAN_BASE_URL = 'https://api.jikan.moe/v4';
 

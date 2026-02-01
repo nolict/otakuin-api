@@ -1,4 +1,3 @@
-// Jikan API v4 response types
 export interface JikanAnimeData {
   mal_id: number;
   url: string;

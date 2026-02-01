@@ -1,8 +1,8 @@
 import { distance } from 'fastest-levenshtein';
 import { compareTwoStrings } from 'string-similarity';
 
-import type { JikanAnimeData } from '../types/jikan';
-import type { AnimeMetadata } from '../types/anime';
+import type { AnimeMetadata } from '../../types/anime';
+import type { JikanAnimeData } from '../../types/jikan';
 
 export interface MatchResult {
   slug: string;
@@ -39,10 +39,6 @@ function normalizeTitle(title: string): string {
 }
 
 function removeSuffixes(title: string): string {
-  // IMPORTANT: Do NOT remove numbers that are part of the anime identity
-  // Examples: "Jujutsu Kaisen 0", "Evangelion 1.0", "Code Geass R2"
-  
-  // Only remove season indicators, not standalone numbers
   return title
     .replace(/\s+(season|s)\s*\d+$/i, '')
     .replace(/\s+(part|cour)\s*\d+$/i, '')
@@ -59,14 +55,14 @@ function extractSeasonNumber(title: string): number | null {
     /(\d+)(st|nd|rd|th)\s+season/i,
     /\s+(\d+)$/
   ];
-  
+
   for (const pattern of patterns) {
     const match = title.match(pattern);
-    if (match !== null && match[1] !== undefined) {
+    if (match?.[1] !== undefined) {
       return parseInt(match[1], 10);
     }
   }
-  
+
   return null;
 }
 
@@ -76,30 +72,26 @@ function isSpecialContent(title: string, type: string): boolean {
     'episode of', 'recap', 'summary',
     'lost girls', 'lost memories', 'picture drama'
   ];
-  
+
   const normalizedTitle = title.toLowerCase();
   const normalizedType = type.toLowerCase();
-  
-  // Check if title contains special keywords
+
   const hasSpecialKeyword = specialKeywords.some((keyword) => normalizedTitle.includes(keyword));
-  
-  // Check if type is special (not TV)
-  const isSpecialType = normalizedType !== 'tv' && 
-                        !normalizedType.includes('tv') && 
+
+  const isSpecialType = normalizedType !== 'tv' &&
+                        !normalizedType.includes('tv') &&
                         !normalizedType.includes('serial');
-  
+
   return hasSpecialKeyword || isSpecialType;
 }
 
-// Layer 1: Quick Filters (MUST PASS)
 function checkQuickFilters(
   jikanData: JikanAnimeData,
   scrapedMetadata: AnimeMetadata
 ): { passed: boolean; typeMatch: boolean; yearMatch: boolean; seasonMatch: boolean } {
-  // Type validation - STRICT for special content
   const jikanType = (jikanData.type ?? '').toLowerCase();
   const scrapedType = scrapedMetadata.type.toLowerCase();
-  
+
   let typeMatch = false;
   if (jikanType === 'tv' && (scrapedType.includes('tv') || scrapedType.includes('serial'))) {
     typeMatch = true;
@@ -112,26 +104,24 @@ function checkQuickFilters(
   } else if (jikanType === 'special' && scrapedType.includes('special')) {
     typeMatch = true;
   }
-  
-  // Year validation - Allow ±1 year for delayed releases
+
   let yearMatch = false;
   if (jikanData.year !== null && scrapedMetadata.year !== undefined) {
     const yearDiff = Math.abs(jikanData.year - scrapedMetadata.year);
     yearMatch = yearDiff <= 1;
   } else {
-    yearMatch = true; // Pass if year data missing
+    yearMatch = true;
   }
-  
-  // Season validation
+
   let seasonMatch = true;
   if (jikanData.season !== null && scrapedMetadata.season !== undefined) {
     const jikanSeason = jikanData.season.toLowerCase();
     const scrapedSeason = scrapedMetadata.season.toLowerCase();
     seasonMatch = jikanSeason === scrapedSeason;
   }
-  
+
   const passed = typeMatch && yearMatch;
-  
+
   return { passed, typeMatch, yearMatch, seasonMatch };
 }
 
@@ -142,7 +132,7 @@ function calculateTitleSimilarity(
 ): { bestMatch: string; levenshteinDistance: number; diceCoefficient: number; normalizedScore: number } {
   const jikanTitles: string[] = [];
   const scrapedTitles: string[] = [];
-  
+
   // Collect all Jikan titles
   if (jikanData.title.length > 0) {
     jikanTitles.push(normalizeTitle(jikanData.title));
@@ -159,7 +149,7 @@ function calculateTitleSimilarity(
     jikanTitles.push(normalizeTitle(syn));
     jikanTitles.push(normalizeTitle(removeSuffixes(syn)));
   });
-  
+
   // Collect all scraped titles
   scrapedTitles.push(normalizeTitle(scrapedMetadata.title));
   scrapedTitles.push(normalizeTitle(removeSuffixes(scrapedMetadata.title)));
@@ -176,17 +166,17 @@ function calculateTitleSimilarity(
       scrapedTitles.push(normalizeTitle(removeSuffixes(syn)));
     });
   }
-  
+
   // Find best match
   let bestLevenshtein = Infinity;
   let bestDice = 0;
   let bestMatchPair = '';
-  
+
   jikanTitles.forEach((jTitle) => {
     scrapedTitles.forEach((sTitle) => {
       const lev = distance(jTitle, sTitle);
       const dice = compareTwoStrings(jTitle, sTitle);
-      
+
       // Prefer high dice coefficient (more accurate for phrases)
       if (dice > bestDice || (dice === bestDice && lev < bestLevenshtein)) {
         bestDice = dice;
@@ -195,11 +185,11 @@ function calculateTitleSimilarity(
       }
     });
   });
-  
+
   // Normalize score (0-100)
   // Dice coefficient is already 0-1, so multiply by 100
   const normalizedScore = bestDice * 100;
-  
+
   return {
     bestMatch: bestMatchPair,
     levenshteinDistance: bestLevenshtein,
@@ -215,23 +205,23 @@ function calculateMetadataScore(
 ): { totalScore: number; breakdown: Record<string, number> } {
   const breakdown: Record<string, number> = {};
   let totalScore = 0;
-  
+
   // Studio matching (15 points)
   if (jikanData.studios.length > 0 && scrapedMetadata.studio !== undefined && scrapedMetadata.studio.length > 0) {
     const studioMatch = jikanData.studios.some((studio) => {
       const normalizedJikan = normalizeTitle(studio.name);
       const normalizedScraped = normalizeTitle(scrapedMetadata.studio ?? '');
-      return normalizedJikan === normalizedScraped || 
+      return normalizedJikan === normalizedScraped ||
              normalizedJikan.includes(normalizedScraped) ||
              normalizedScraped.includes(normalizedJikan);
     });
-    
+
     if (studioMatch) {
       breakdown.studio = 15;
       totalScore += 15;
     }
   }
-  
+
   // Source matching (10 points)
   if (
     jikanData.source !== null &&
@@ -241,13 +231,13 @@ function calculateMetadataScore(
   ) {
     const normalizedJikan = normalizeTitle(jikanData.source);
     const normalizedScraped = normalizeTitle(scrapedMetadata.source);
-    
+
     if (normalizedJikan === normalizedScraped) {
       breakdown.source = 10;
       totalScore += 10;
     }
   }
-  
+
   return { totalScore, breakdown };
 }
 
@@ -258,7 +248,7 @@ function validateSeasonNumber(
 ): { valid: boolean; warning?: string } {
   const jikanSeasonNum = extractSeasonNumber(jikanData.title);
   const scrapedSeasonNum = extractSeasonNumber(scrapedMetadata.title);
-  
+
   // If both have season numbers, they must match
   if (jikanSeasonNum !== null && scrapedSeasonNum !== null) {
     if (jikanSeasonNum !== scrapedSeasonNum) {
@@ -268,18 +258,18 @@ function validateSeasonNumber(
       };
     }
   }
-  
+
   // Check for special content mismatches
   const jikanIsSpecial = isSpecialContent(jikanData.title, jikanData.type ?? '');
   const scrapedIsSpecial = isSpecialContent(scrapedMetadata.title, scrapedMetadata.type);
-  
+
   if (jikanIsSpecial !== scrapedIsSpecial) {
     return {
       valid: false,
       warning: 'Special content type mismatch (OVA/Movie vs TV Series)'
     };
   }
-  
+
   return { valid: true };
 }
 
@@ -289,10 +279,10 @@ export function calculateMatchV2(
   slug: string
 ): MatchResult {
   const warnings: string[] = [];
-  
+
   // Layer 1: Quick Filters
   const layer1 = checkQuickFilters(jikanData, scrapedMetadata);
-  
+
   if (!layer1.typeMatch) {
     warnings.push(`Type mismatch: ${jikanData.type} vs ${scrapedMetadata.type}`);
   }
@@ -302,46 +292,46 @@ export function calculateMatchV2(
   if (!layer1.seasonMatch) {
     warnings.push(`Season mismatch: ${jikanData.season} vs ${scrapedMetadata.season}`);
   }
-  
+
   // Layer 2: Title Similarity (50 points max)
   const layer2 = calculateTitleSimilarity(jikanData, scrapedMetadata);
   const titleScore = layer2.normalizedScore * 0.5; // Scale to 50 points
-  
+
   // Layer 3: Metadata Score (25 points max)
   const layer3 = calculateMetadataScore(jikanData, scrapedMetadata);
   const metadataScore = layer3.totalScore;
-  
+
   // Layer 4: Season Validation
   const seasonValidation = validateSeasonNumber(jikanData, scrapedMetadata);
   if (!seasonValidation.valid && seasonValidation.warning !== undefined) {
     warnings.push(seasonValidation.warning);
   }
-  
+
   // Calculate final confidence (0-100)
   let confidence = 0;
-  
+
   if (layer1.passed) {
     confidence += 25; // Base score for passing quick filters
     confidence += titleScore; // Up to 50 points
     confidence += metadataScore; // Up to 25 points
-    
+
     // Bonus for exact matches
     if (layer2.diceCoefficient >= 0.95) {
       confidence += 10;
     }
-    
+
     // Penalty for season validation failure
     if (!seasonValidation.valid) {
       confidence -= 30;
     }
-    
+
     // Cap at 100
     confidence = Math.min(confidence, 100);
   }
-  
+
   // Decision: Accept if confidence >= 75%
   const isMatch = layer1.passed && confidence >= 75 && seasonValidation.valid;
-  
+
   return {
     slug,
     isMatch,

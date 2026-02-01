@@ -94,7 +94,7 @@ bun run lint:fix
 - Nullish coalescing (`??`) and optional chaining (`?.`)
 - Consistent formatting (2 spaces, single quotes)
 
-See `AGENTS.md` for complete ESLint documentation.
+All rules are enforced via ESLint with 60+ comprehensive rules.
 
 ## API Documentation
 
@@ -168,8 +168,7 @@ anime-scraper-api/
 ├── package.json
 ├── tsconfig.json
 ├── .eslintrc.json
-├── AGENTS.md             # Technical documentation
-└── SETUP.md              # Installation guide
+└── README.md
 ```
 
 ## Development

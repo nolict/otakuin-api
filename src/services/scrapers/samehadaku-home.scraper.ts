@@ -1,6 +1,6 @@
-import { fetchHTML, parseDOM } from '../utils/dom-parser';
+import { fetchHTML, parseDOM } from '../../utils/dom-parser';
 
-import type { AnimeItem, ScraperResult } from '../types/anime';
+import type { AnimeItem, ScraperResult } from '../../types/anime';
 
 const SAMEHADAKU_HOME_URL = 'https://v1.samehadaku.how/anime-terbaru/';
 

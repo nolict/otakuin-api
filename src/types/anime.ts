@@ -10,7 +10,6 @@ export interface ScraperResult<T> {
   error?: string;
 }
 
-// Anime detail from scraper
 export interface AnimeMetadata {
   title: string;
   alternativeTitles: {
@@ -41,7 +40,6 @@ export interface AnimeDetailScraped {
   episodes: Episode[];
 }
 
-// Unified response for /api/anime/:id_mal
 export interface UnifiedAnimeDetail {
   id: number;
   name: string;
@@ -67,7 +65,6 @@ export interface UnifiedEpisode {
   releaseDate: string | null;
 }
 
-// Matching score for algorithm
 export interface MatchScore {
   slug: string;
   score: number;
