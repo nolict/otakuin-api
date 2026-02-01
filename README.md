@@ -1,18 +1,21 @@
 # Anime Scraper API
 
-A modular, production-ready API ecosystem for scraping anime content from various sources. Built with modern TypeScript and optimized for the Bun runtime.
+A modular, production-ready API ecosystem for scraping anime content from multiple Indonesian sources with intelligent metadata-based matching. Built with modern TypeScript and optimized for the Bun runtime.
 
 ## Overview
 
-This project provides a clean, maintainable architecture for building anime content scrapers. The initial implementation includes a Samehadaku scraper with a DOM inspection utility for rapid development.
+This project provides a unified API for accessing anime information from multiple sources (Samehadaku, Animasu) using MyAnimeList as the source of truth. Features an advanced matching algorithm that scores anime based on metadata comparison.
 
 ### Key Features
 
-- **Modular Architecture**: Clean separation of concerns with dedicated layers for API, services, and utilities
+- **Multi-Source Unified API**: Single endpoint returning episodes from multiple sources
+- **Intelligent Matching**: Advanced metadata-based algorithm (100-point scoring system)
+- **MyAnimeList Integration**: Uses Jikan API v4 as source of truth
+- **Slug Detection**: Smart variation generator for season-based anime
+- **Episode Merging**: Combines episodes from all sources by episode number
 - **Type-Safe**: Full TypeScript strict mode with comprehensive type definitions
 - **Developer-Friendly**: Includes DOM inspection tools for rapid scraper development
 - **Production-Ready**: Robust error handling and structured responses
-- **Extensible**: Easy to add new sources and endpoints
 - **Code Quality**: 60+ ESLint rules enforcing best practices
 
 ## Technology Stack

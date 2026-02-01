@@ -11,8 +11,10 @@
     "lint:fix": "eslint . --ext .ts --fix"
   },
   "dependencies": {
+    "cheerio": "^1.0.0-rc.12",
     "elysia": "^1.0.0",
-    "cheerio": "^1.0.0-rc.12"
+    "fastest-levenshtein": "^1.0.16",
+    "string-similarity": "^4.0.4"
   },
   "devDependencies": {
     "@types/bun": "latest",

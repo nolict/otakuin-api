@@ -9,3 +9,67 @@ export interface ScraperResult<T> {
   data?: T;
   error?: string;
 }
+
+// Anime detail from scraper
+export interface AnimeMetadata {
+  title: string;
+  alternativeTitles: {
+    english?: string;
+    japanese?: string;
+    synonyms?: string[];
+  };
+  type: string;
+  status: string;
+  season?: string;
+  year?: number;
+  studio?: string;
+  source?: string;
+  duration?: string;
+  totalEpisodes?: string;
+  releasedDate?: string;
+}
+
+export interface Episode {
+  number: number;
+  title: string;
+  url: string;
+  releaseDate?: string;
+}
+
+export interface AnimeDetailScraped {
+  metadata: AnimeMetadata;
+  episodes: Episode[];
+}
+
+// Unified response for /api/anime/:id_mal
+export interface UnifiedAnimeDetail {
+  id: number;
+  name: string;
+  slug_samehadaku: string | null;
+  slug_animasu: string | null;
+  coverurl: string;
+  type: string;
+  status: string;
+  season: string | null;
+  year: number | null;
+  studio: string | null;
+  score: number | null;
+  synopsis: string | null;
+  genres: string[];
+  episodes: UnifiedEpisode[];
+}
+
+export interface UnifiedEpisode {
+  number: number;
+  title: string;
+  url_samehadaku: string | null;
+  url_animasu: string | null;
+  releaseDate: string | null;
+}
+
+// Matching score for algorithm
+export interface MatchScore {
+  slug: string;
+  score: number;
+  reasons: string[];
+}
