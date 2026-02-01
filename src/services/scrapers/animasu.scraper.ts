@@ -1,4 +1,5 @@
 import { fetchHTML, parseDOM } from '../../utils/dom-parser';
+import { logger } from '../../utils/logger';
 
 import type { AnimeDetailScraped, AnimeMetadata, Episode, ScraperResult } from '../../types/anime';
 
@@ -53,9 +54,11 @@ function extractEpisodeNumber(text: string): number {
 }
 
 export async function scrapeAnimasuDetail(slug: string): Promise<ScraperResult<AnimeDetailScraped>> {
+  const timer = logger.timer();
   const url = `${ANIMASU_BASE_URL}/anime/${slug}/`;
 
   try {
+    logger.debug('Scraping Animasu detail', { url });
     const html = await fetchHTML(url);
     const $ = parseDOM(html);
 
@@ -154,11 +157,14 @@ export async function scrapeAnimasuDetail(slug: string): Promise<ScraperResult<A
     episodes.sort((a, b) => a.number - b.number);
 
     if (title.length === 0) {
+      logger.error('Animasu scrape failed: Could not extract title');
       return {
         success: false,
         error: 'Could not extract anime title from Animasu'
       };
     }
+
+    timer.end('Animasu scrape completed', { episode_count: episodes.length });
 
     return {
       success: true,
@@ -168,6 +174,7 @@ export async function scrapeAnimasuDetail(slug: string): Promise<ScraperResult<A
       }
     };
   } catch (error) {
+    logger.error('Animasu scrape failed', error instanceof Error ? error : undefined);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'

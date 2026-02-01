@@ -1,7 +1,10 @@
 import { compareTwoStrings } from 'string-similarity';
 
+import { logger } from '../../utils/logger';
 import { fetchAnimeByMalId } from '../clients/jikan.client';
 import { calculateMatchV2 } from '../matchers/anime.matcher';
+import { findAnimeCacheByMalId, upsertAnimeCache } from '../repositories/anime-cache.repository';
+import { findSlugMappingByMalId, upsertSlugMapping } from '../repositories/slug-mapping.repository';
 import { scrapeAnimasuDetail } from '../scrapers/animasu.scraper';
 import { scrapeSamehadakuDetail } from '../scrapers/samehadaku-detail.scraper';
 import { scrapeHomePage } from '../scrapers/samehadaku-home.scraper';
@@ -12,6 +15,7 @@ import type {
   UnifiedAnimeDetail,
   UnifiedEpisode
 } from '../../types/anime';
+import type { AnimeCacheMetadata } from '../../types/database';
 import type { JikanAnimeData } from '../../types/jikan';
 
 function extractSequenceNumber(title: string): number | null {
@@ -146,8 +150,6 @@ async function tryFindSlug(
   scrapeFunction: (slug: string) => Promise<ScraperResult<AnimeDetailScraped>>,
   jikanData: JikanAnimeData
 ): Promise<{ slug: string; data: AnimeDetailScraped; confidence: number } | null> {
-  const matches: Array<{ slug: string; data: AnimeDetailScraped; confidence: number }> = [];
-
   for (const slug of slugVariations) {
     const result = await scrapeFunction(slug);
 
@@ -159,25 +161,16 @@ async function tryFindSlug(
       );
 
       if (matchResult.isMatch && matchResult.confidence >= 75) {
-        matches.push({
+        return {
           slug,
           data: result.data,
           confidence: matchResult.confidence
-        });
-
-        if (matchResult.confidence >= 95) {
-          break;
-        }
+        };
       }
     }
   }
 
-  if (matches.length > 0) {
-    matches.sort((a, b) => b.confidence - a.confidence);
-    return matches[0];
-  }
-
-  console.log('🔍 No exact match found, trying fuzzy slug matching...');
+  logger.debug('No exact match found, trying fuzzy slug matching');
 
   const homeResult = await scrapeHomePage();
 
@@ -185,10 +178,11 @@ async function tryFindSlug(
     const availableSlugs = homeResult.data.map((anime) => anime.slug);
     const fuzzyMatches = findBestSlugMatch(slugVariations, availableSlugs);
 
-    console.log(`📊 Found ${fuzzyMatches.length} fuzzy slug matches`);
+    logger.debug('Fuzzy slug matches found', { count: fuzzyMatches.length });
 
-    for (const fuzzyMatch of fuzzyMatches.slice(0, 5)) {
-      console.log(`   Testing: ${fuzzyMatch.slug} (similarity: ${(fuzzyMatch.similarity * 100).toFixed(1)}%)`);
+    const fuzzyTestPromises = fuzzyMatches.slice(0, 5).map(async (fuzzyMatch) => {
+      const similarityPercent = (fuzzyMatch.similarity * 100).toFixed(1);
+      logger.debug('Testing fuzzy match', { slug: fuzzyMatch.slug, similarity: similarityPercent });
 
       const result = await scrapeFunction(fuzzyMatch.slug);
 
@@ -200,31 +194,77 @@ async function tryFindSlug(
         );
 
         if (matchResult.isMatch && matchResult.confidence >= 80) {
-          console.log(`   ✅ Match confirmed: ${fuzzyMatch.slug} (confidence: ${matchResult.confidence}%)`);
-          matches.push({
+          logger.info(`Match confirmed: ${fuzzyMatch.slug}`);
+          logger.debug('Fuzzy match details', { slug: fuzzyMatch.slug, confidence: matchResult.confidence });
+          return {
             slug: fuzzyMatch.slug,
             data: result.data,
             confidence: matchResult.confidence
-          });
-
-          if (matchResult.confidence >= 95) {
-            break;
-          }
+          };
         }
       }
-    }
-  }
 
-  if (matches.length > 0) {
-    matches.sort((a, b) => b.confidence - a.confidence);
-    return matches[0];
+      return null;
+    });
+
+    const fuzzyResults = await Promise.all(fuzzyTestPromises);
+    const validMatches = fuzzyResults.filter(
+      (r): r is { slug: string; data: AnimeDetailScraped; confidence: number } => r !== null
+    );
+
+    if (validMatches.length > 0) {
+      validMatches.sort((a, b) => b.confidence - a.confidence);
+      return validMatches[0];
+    }
   }
 
   return null;
 }
 
+function convertToUnifiedAnimeDetail(metadata: AnimeCacheMetadata): UnifiedAnimeDetail {
+  return {
+    id: metadata.mal_id,
+    name: metadata.title,
+    slug_samehadaku: metadata.samehadaku_slug,
+    slug_animasu: metadata.animasu_slug,
+    coverurl: metadata.image_url ?? '',
+    type: metadata.type ?? 'Unknown',
+    status: metadata.status ?? 'Unknown',
+    season: metadata.season,
+    year: metadata.year,
+    studio: metadata.studios.length > 0 ? metadata.studios[0] : null,
+    score: metadata.score,
+    synopsis: metadata.synopsis,
+    genres: metadata.genres,
+    episodes: metadata.episode_list.map((ep) => ({
+      number: ep.episode,
+      title: ep.title,
+      url_samehadaku: ep.sources.find((s) => s.source === 'samehadaku')?.url ?? null,
+      url_animasu: ep.sources.find((s) => s.source === 'animasu')?.url ?? null,
+      releaseDate: null
+    }))
+  };
+}
+
 export async function getUnifiedAnimeDetail(malId: number): Promise<ScraperResult<UnifiedAnimeDetail>> {
+  const requestTimer = logger.timer();
+
   try {
+    logger.info(`Fetching anime with MAL ID: ${malId}`);
+
+    const cachedMetadata = await findAnimeCacheByMalId(malId);
+
+    if (cachedMetadata !== null) {
+      requestTimer.end('Cache HIT', { mal_id: malId });
+      logger.info('Returned cached metadata');
+      return {
+        success: true,
+        data: convertToUnifiedAnimeDetail(cachedMetadata)
+      };
+    }
+
+    logger.debug('Cache MISS - Fetching from sources');
+
     const jikanResult = await fetchAnimeByMalId(malId);
 
     if (!jikanResult.success || jikanResult.data === undefined) {
@@ -236,16 +276,95 @@ export async function getUnifiedAnimeDetail(malId: number): Promise<ScraperResul
 
     const jikanData = jikanResult.data;
 
-    const slugVariations = generateSlugVariations(jikanData.title, jikanData.title_english);
+    const existingMapping = await findSlugMappingByMalId(malId);
 
-    let samehadakuSlug: string | null = null;
+    let samehadakuSlug: string | null = existingMapping?.samehadaku_slug ?? null;
+    let animasuSlug: string | null = existingMapping?.animasu_slug ?? null;
+    let confidenceSamehadaku: number | null = existingMapping?.confidence_samehadaku ?? null;
+    let confidenceAnimasu: number | null = existingMapping?.confidence_animasu ?? null;
+
+    if (existingMapping !== null) {
+      logger.info('Slug mapping found in database');
+      logger.debug('Slug mapping details', {
+        samehadaku_slug: samehadakuSlug,
+        samehadaku_confidence: confidenceSamehadaku,
+        animasu_slug: animasuSlug,
+        animasu_confidence: confidenceAnimasu
+      });
+    } else {
+      logger.info('Slug mapping not found - Starting discovery');
+      const discoveryTimer = logger.timer();
+
+      const slugVariations = generateSlugVariations(jikanData.title, jikanData.title_english);
+      logger.debug('Generated slug variations', { count: slugVariations.length, variations: slugVariations });
+
+      const [samehadakuMatch, animasuMatch] = await Promise.all([
+        tryFindSlug(slugVariations, scrapeSamehadakuDetail, jikanData),
+        tryFindSlug(slugVariations, scrapeAnimasuDetail, jikanData)
+      ]);
+
+      discoveryTimer.end('Slug discovery', {
+        samehadaku_found: samehadakuMatch !== null,
+        animasu_found: animasuMatch !== null
+      });
+
+      if (samehadakuMatch !== null) {
+        samehadakuSlug = samehadakuMatch.slug;
+        confidenceSamehadaku = samehadakuMatch.confidence;
+        logger.info(`Samehadaku slug found: ${samehadakuSlug}`);
+        logger.debug('Samehadaku match details', { slug: samehadakuSlug, confidence: confidenceSamehadaku });
+      } else {
+        logger.warn('Samehadaku slug not found');
+      }
+
+      if (animasuMatch !== null) {
+        animasuSlug = animasuMatch.slug;
+        confidenceAnimasu = animasuMatch.confidence;
+        logger.info(`Animasu slug found: ${animasuSlug}`);
+        logger.debug('Animasu match details', { slug: animasuSlug, confidence: confidenceAnimasu });
+      } else {
+        logger.warn('Animasu slug not found');
+      }
+
+      await upsertSlugMapping({
+        mal_id: malId,
+        samehadaku_slug: samehadakuSlug,
+        animasu_slug: animasuSlug,
+        confidence_samehadaku: confidenceSamehadaku,
+        confidence_animasu: confidenceAnimasu
+      });
+
+      logger.debug('Slug mapping saved to database');
+    }
+
+    logger.info('Scraping episodes from sources');
+    const scrapeTimer = logger.timer();
+
+    const scrapePromises: Array<Promise<ScraperResult<AnimeDetailScraped>>> = [];
+
+    if (samehadakuSlug !== null) {
+      scrapePromises.push(scrapeSamehadakuDetail(samehadakuSlug));
+    } else {
+      scrapePromises.push(Promise.resolve({ success: false as const }));
+    }
+
+    if (animasuSlug !== null) {
+      scrapePromises.push(scrapeAnimasuDetail(animasuSlug));
+    } else {
+      scrapePromises.push(Promise.resolve({ success: false as const }));
+    }
+
+    const [samehadakuResult, animasuResult] = await Promise.all(scrapePromises);
+
+    scrapeTimer.end('Episode scraping', {
+      samehadaku_success: samehadakuResult.success,
+      animasu_success: animasuResult.success
+    });
+
     let samehadakuEpisodes: UnifiedEpisode[] = [];
 
-    const samehadakuMatch = await tryFindSlug(slugVariations, scrapeSamehadakuDetail, jikanData);
-
-    if (samehadakuMatch !== null) {
-      samehadakuSlug = samehadakuMatch.slug;
-      samehadakuEpisodes = samehadakuMatch.data.episodes.map((ep) => ({
+    if (samehadakuResult.success && samehadakuResult.data !== undefined) {
+      samehadakuEpisodes = samehadakuResult.data.episodes.map((ep) => ({
         number: ep.number,
         title: ep.title,
         url_samehadaku: ep.url,
@@ -254,14 +373,8 @@ export async function getUnifiedAnimeDetail(malId: number): Promise<ScraperResul
       }));
     }
 
-    let animasuSlug: string | null = null;
-
-    const animasuMatch = await tryFindSlug(slugVariations, scrapeAnimasuDetail, jikanData);
-
-    if (animasuMatch !== null) {
-      animasuSlug = animasuMatch.slug;
-
-      animasuMatch.data.episodes.forEach((ep) => {
+    if (animasuResult.success && animasuResult.data !== undefined) {
+      animasuResult.data.episodes.forEach((ep) => {
         const existingEp = samehadakuEpisodes.find((e) => e.number === ep.number);
 
         if (existingEp !== undefined) {
@@ -279,6 +392,57 @@ export async function getUnifiedAnimeDetail(malId: number): Promise<ScraperResul
     }
 
     samehadakuEpisodes.sort((a, b) => a.number - b.number);
+
+    const cacheMetadata: AnimeCacheMetadata = {
+      mal_id: jikanData.mal_id,
+      title: jikanData.title,
+      title_english: jikanData.title_english,
+      title_japanese: jikanData.title_japanese,
+      synopsis: jikanData.synopsis,
+      image_url: jikanData.images.jpg.large_image_url,
+      type: jikanData.type,
+      episodes: jikanData.episodes,
+      status: jikanData.status,
+      year: jikanData.year,
+      season: jikanData.season,
+      studios: jikanData.studios.map((s) => s.name),
+      genres: jikanData.genres.map((g) => g.name),
+      themes: jikanData.themes.map((t) => t.name),
+      demographics: jikanData.demographics.map((d) => d.name),
+      score: jikanData.score,
+      scored_by: jikanData.scored_by,
+      rank: jikanData.rank,
+      popularity: jikanData.popularity,
+      members: jikanData.members,
+      favorites: jikanData.favorites,
+      rating: jikanData.rating,
+      source: jikanData.source,
+      duration: jikanData.duration,
+      broadcast_day: jikanData.broadcast.day,
+      broadcast_time: jikanData.broadcast.time,
+      samehadaku_slug: samehadakuSlug,
+      animasu_slug: animasuSlug,
+      episode_list: samehadakuEpisodes.map((ep) => ({
+        episode: ep.number,
+        title: ep.title,
+        sources: [
+          ep.url_samehadaku !== null ? { source: 'samehadaku', url: ep.url_samehadaku } : null,
+          ep.url_animasu !== null ? { source: 'animasu', url: ep.url_animasu } : null
+        ].filter((s): s is { source: string; url: string } => s !== null)
+      }))
+    };
+
+    await upsertAnimeCache(cacheMetadata);
+
+    logger.debug('Metadata cached for 20 minutes');
+
+    const totalEpisodes = samehadakuEpisodes.length;
+    requestTimer.end('Request completed', {
+      mal_id: malId,
+      total_episodes: totalEpisodes,
+      samehadaku_slug: samehadakuSlug,
+      animasu_slug: animasuSlug
+    });
 
     const unified: UnifiedAnimeDetail = {
       id: jikanData.mal_id,

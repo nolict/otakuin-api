@@ -1,4 +1,5 @@
 import { fetchHTML, parseDOM } from '../../utils/dom-parser';
+import { logger } from '../../utils/logger';
 
 import type { AnimeDetailScraped, AnimeMetadata, Episode, ScraperResult } from '../../types/anime';
 
@@ -27,9 +28,11 @@ function extractEpisodeNumber(text: string): number {
 }
 
 export async function scrapeSamehadakuDetail(slug: string): Promise<ScraperResult<AnimeDetailScraped>> {
+  const timer = logger.timer();
   const url = `${SAMEHADAKU_BASE_URL}/anime/${slug}/`;
 
   try {
+    logger.debug('Scraping Samehadaku detail', { url });
     const html = await fetchHTML(url);
     const $ = parseDOM(html);
 
@@ -98,11 +101,14 @@ export async function scrapeSamehadakuDetail(slug: string): Promise<ScraperResul
     episodes.sort((a, b) => a.number - b.number);
 
     if (title.length === 0) {
+      logger.error('Samehadaku scrape failed: Could not extract title');
       return {
         success: false,
         error: 'Could not extract anime title from Samehadaku'
       };
     }
+
+    timer.end('Samehadaku scrape completed', { episode_count: episodes.length });
 
     return {
       success: true,
@@ -112,6 +118,7 @@ export async function scrapeSamehadakuDetail(slug: string): Promise<ScraperResul
       }
     };
   } catch (error) {
+    logger.error('Samehadaku scrape failed', error instanceof Error ? error : undefined);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'

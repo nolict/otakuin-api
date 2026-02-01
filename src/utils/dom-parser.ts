@@ -9,17 +9,27 @@ export interface DOMElement {
   text: string;
 }
 
-export async function fetchHTML(url: string): Promise<string> {
+const DEFAULT_TIMEOUT_MS = 10000;
+
+export async function fetchHTML(url: string, timeoutMs: number = DEFAULT_TIMEOUT_MS): Promise<string> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: controller.signal });
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     return await response.text();
   } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error(`Request timeout after ${timeoutMs}ms: ${url}`);
+    }
     throw new Error(
       `Failed to fetch URL: ${error instanceof Error ? error.message : 'Unknown error'}`
     );
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 

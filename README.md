@@ -9,9 +9,12 @@ This project provides a unified API for accessing anime information from multipl
 ### Key Features
 
 - **Multi-Source Unified API**: Single endpoint returning episodes from multiple sources
-- **Intelligent Matching**: Advanced metadata-based algorithm (100-point scoring system)
+- **Intelligent Matching**: Advanced 4-layer metadata-based algorithm (83.3% accuracy)
+- **Database Caching**: Supabase integration with 20-minute TTL for 99% faster responses
+- **Permanent Slug Storage**: Eliminates repeated slug discovery after first request
 - **MyAnimeList Integration**: Uses Jikan API v4 as source of truth
-- **Slug Detection**: Smart variation generator for season-based anime
+- **Slug Detection**: Smart variation generator for season-based anime (Part/Cour/Season/Roman numerals)
+- **Fuzzy Matching**: 70% similarity threshold for flexible slug detection
 - **Episode Merging**: Combines episodes from all sources by episode number
 - **Type-Safe**: Full TypeScript strict mode with comprehensive type definitions
 - **Developer-Friendly**: Includes DOM inspection tools for rapid scraper development
@@ -23,6 +26,7 @@ This project provides a unified API for accessing anime information from multipl
 - **Runtime**: Bun
 - **Language**: TypeScript (Strict Mode)
 - **Framework**: ElysiaJS
+- **Database**: Supabase (PostgreSQL)
 - **Scraping**: Cheerio
 - **Code Quality**: ESLint with TypeScript configuration
 
@@ -41,7 +45,13 @@ cd otakuin-api
 
 # Install dependencies
 bun install
+
+# Configure environment variables
+cp .env.example .env
+# Edit .env with your Supabase credentials
 ```
+
+For detailed setup instructions including database configuration, see [SETUP.md](SETUP.md).
 
 ## Usage
 
