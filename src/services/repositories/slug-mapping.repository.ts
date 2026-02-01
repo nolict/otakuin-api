@@ -45,6 +45,10 @@ export async function upsertSlugMapping(mapping: SlugMappingInsert): Promise<Slu
   return result.data as SlugMapping;
 }
 
+export async function getSlugMapping(malId: number): Promise<SlugMapping | null> {
+  return findSlugMappingByMalId(malId);
+}
+
 export async function deleteSlugMapping(malId: number): Promise<void> {
   const { error } = await supabase
     .from('slug_mappings')

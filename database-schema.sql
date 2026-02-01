@@ -73,18 +73,53 @@ CREATE TRIGGER update_slug_mappings_updated_at
 CREATE OR REPLACE FUNCTION cleanup_expired_cache()
 RETURNS INTEGER AS $$
 DECLARE
-  deleted_count INTEGER;
+  deleted_anime INTEGER;
+  deleted_streaming INTEGER;
+  total_deleted INTEGER;
 BEGIN
   DELETE FROM anime_cache WHERE expires_at < NOW();
-  GET DIAGNOSTICS deleted_count = ROW_COUNT;
-  RETURN deleted_count;
+  GET DIAGNOSTICS deleted_anime = ROW_COUNT;
+  
+  DELETE FROM streaming_cache WHERE expires_at < NOW();
+  GET DIAGNOSTICS deleted_streaming = ROW_COUNT;
+  
+  total_deleted := deleted_anime + deleted_streaming;
+  RETURN total_deleted;
 END;
 $$ LANGUAGE plpgsql;
+
+-- Table 3: Streaming Links Cache (Temporary Storage - 20 minutes TTL)
+-- Purpose: Cache streaming links per episode to reduce scraping load
+CREATE TABLE IF NOT EXISTS streaming_cache (
+  id BIGSERIAL PRIMARY KEY,
+  mal_id INTEGER NOT NULL,
+  episode INTEGER NOT NULL,
+  sources JSONB NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(mal_id, episode)
+);
+
+-- Index for fast lookup by MAL ID and episode
+CREATE INDEX IF NOT EXISTS idx_streaming_cache_mal_episode ON streaming_cache(mal_id, episode);
+
+-- Index for automatic cleanup of expired entries
+CREATE INDEX IF NOT EXISTS idx_streaming_cache_expires_at ON streaming_cache(expires_at);
+
+-- Comments for documentation
+COMMENT ON TABLE streaming_cache IS 'Temporary cache for streaming links with 20 minute TTL';
+COMMENT ON COLUMN streaming_cache.mal_id IS 'MyAnimeList anime ID';
+COMMENT ON COLUMN streaming_cache.episode IS 'Episode number';
+COMMENT ON COLUMN streaming_cache.sources IS 'Array of streaming links with provider, url, resolution, server';
+COMMENT ON COLUMN streaming_cache.expires_at IS 'Cache expiration timestamp (20 minutes from creation)';
+
 
 -- Optional: Enable Row Level Security (RLS) for production
 -- ALTER TABLE slug_mappings ENABLE ROW LEVEL SECURITY;
 -- ALTER TABLE anime_cache ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE streaming_cache ENABLE ROW LEVEL SECURITY;
 
 -- Optional: Create policies for API access
 -- CREATE POLICY "Allow read access to all users" ON slug_mappings FOR SELECT USING (true);
 -- CREATE POLICY "Allow read access to all users" ON anime_cache FOR SELECT USING (true);
+-- CREATE POLICY "Allow read access to all users" ON streaming_cache FOR SELECT USING (true);

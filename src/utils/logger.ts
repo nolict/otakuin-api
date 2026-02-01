@@ -59,6 +59,17 @@ class Logger {
     }
   }
 
+  perf(message: string, details?: Record<string, unknown>): void {
+    if (this.shouldLog(LogLevel.DEBUG)) {
+      const output = details !== undefined
+        ? `[PERF] ${message} ${JSON.stringify(details)}`
+        : `[PERF] ${message}`;
+      console.log(output);
+    } else if (this.shouldLog(LogLevel.INFO)) {
+      console.log(`[INFO] ${message}`);
+    }
+  }
+
   performance(operation: string, duration: number, details?: Record<string, unknown>): void {
     if (this.shouldLog(LogLevel.DEBUG)) {
       const formatted = this.formatDuration(duration);
@@ -85,6 +96,11 @@ class PerformanceTimer {
     this.logger = logger;
   }
 
+  elapsed(): string {
+    const duration = performance.now() - this.startTime;
+    return this.formatDuration(duration);
+  }
+
   end(operation: string, details?: Record<string, unknown>): number {
     const duration = performance.now() - this.startTime;
     this.logger.performance(operation, duration, details);
@@ -93,9 +109,20 @@ class PerformanceTimer {
 
   split(label: string): number {
     const duration = performance.now() - this.startTime;
-    this.logger.debug(`${label}: ${this.logger['formatDuration'](duration)}`);
+    this.logger.debug(`${label}: ${this.formatDuration(duration)}`);
     return duration;
+  }
+
+  private formatDuration(ms: number): string {
+    if (ms < 1000) {
+      return `${ms.toFixed(0)}ms`;
+    }
+    return `${(ms / 1000).toFixed(2)}s`;
   }
 }
 
 export const logger = new Logger();
+
+export function createTimer(): PerformanceTimer {
+  return logger.timer();
+}
