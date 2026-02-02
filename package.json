@@ -8,9 +8,7 @@
     "start": "bun run src/index.ts",
     "scan": "bun run src/scripts/scan.ts",
     "lint": "eslint . --ext .ts",
-    "lint:fix": "eslint . --ext .ts --fix",
-    "build": "tsc",
-    "vercel-build": "echo 'No build step required for Vercel'"
+    "lint:fix": "eslint . --ext .ts --fix"
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.1",

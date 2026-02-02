@@ -1,9 +1,9 @@
 {
   "compilerOptions": {
-    "target": "ESNext",
+    "target": "ES2022",
     "module": "ESNext",
-    "moduleResolution": "bundler",
-    "lib": ["ESNext"],
+    "moduleResolution": "node",
+    "lib": ["ES2022"],
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -11,12 +11,12 @@
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
     "noEmit": true,
-    "types": ["bun-types"],
+    "types": ["bun-types", "node"],
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]
     }
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "api/**/*"],
   "exclude": ["node_modules"]
 }
