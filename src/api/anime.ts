@@ -1,6 +1,6 @@
 import { Elysia } from 'elysia';
 
-import { getUnifiedAnimeDetail } from '../services/aggregators/anime.aggregator';
+import { getUnifiedAnimeDetail } from '../services/aggregators/anime.aggregator.js';
 
 export const animeRoute = new Elysia({ prefix: '/api' })
   .get('/anime/:id_mal', async ({ params }) => {

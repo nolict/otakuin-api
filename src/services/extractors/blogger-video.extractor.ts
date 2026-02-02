@@ -1,5 +1,5 @@
-import { fetchHTML } from '../../utils/dom-parser';
-import { logger } from '../../utils/logger';
+import { fetchHTML } from '../../utils/dom-parser.js';
+import { logger } from '../../utils/logger.js';
 
 interface BloggerVideoConfig {
   thumbnail: string;

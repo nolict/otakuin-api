@@ -1,6 +1,6 @@
-import { fetchHTML, parseDOM } from '../../utils/dom-parser';
+import { fetchHTML, parseDOM } from '../../utils/dom-parser.js';
 
-import type { StreamingLink, StreamingScraperResult } from '../../types/streaming';
+import type { StreamingLink, StreamingScraperResult } from '../../types/streaming.js';
 
 /**
  * Scrapes streaming links from Samehadaku episode page

@@ -1,10 +1,10 @@
 import { cors } from '@elysiajs/cors';
 import { Elysia } from 'elysia';
 
-import { animeRoute } from './api/anime';
-import { homeRoute } from './api/home';
-import { streamingRoutes } from './api/streaming';
-import { videoProxyRoute } from './api/video-proxy';
+import { animeRoute } from './api/anime.js';
+import { homeRoute } from './api/home.js';
+import { streamingRoutes } from './api/streaming.js';
+import { videoProxyRoute } from './api/video-proxy.js';
 
 const app = new Elysia()
   .use(cors({

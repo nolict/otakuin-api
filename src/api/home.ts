@@ -1,6 +1,6 @@
 import { Elysia } from 'elysia';
 
-import { scrapeHomePage } from '../services/scrapers/samehadaku-home.scraper';
+import { scrapeHomePage } from '../services/scrapers/samehadaku-home.scraper.js';
 
 export const homeRoute = new Elysia({ prefix: '/api' })
   .get('/home', async () => {

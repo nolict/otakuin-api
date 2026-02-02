@@ -1,6 +1,6 @@
-import { supabase } from '../clients/supabase.client';
+import { supabase } from '../clients/supabase.client.js';
 
-import type { AnimeCache, AnimeCacheMetadata } from '../../types/database';
+import type { AnimeCache, AnimeCacheMetadata } from '../../types/database.js';
 
 const CACHE_TTL_MINUTES = 20;
 
