@@ -1,0 +1,16 @@
+node_modules
+.git
+.github
+.vscode
+.env
+.env.local
+*.log
+.DS_Store
+scripts/
+tmp_*
+.eslintcache
+README.md
+AGENTS.md
+DOC-APPS.md
+SETUP.md
+database-schema.sql
