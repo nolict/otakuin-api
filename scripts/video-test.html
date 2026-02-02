@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anime Scraper API - Test Interface</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            background: #000;
+            color: #fff;
+            line-height: 1.5;
+            padding: 10px;
+            font-size: 14px;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: #000;
+            border: 2px solid #fff;
+            padding: 15px;
+        }
+        
+        h1 {
+            font-size: 1.3em;
+            margin-bottom: 8px;
+            font-weight: bold;
+            border-bottom: 2px solid #fff;
+            padding-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        
+        .subtitle {
+            color: #ccc;
+            margin-bottom: 15px;
+            font-size: 0.85em;
+        }
+        
+        .form-section {
+            background: #000;
+            border: 1px solid #fff;
+            padding: 12px;
+            margin-bottom: 15px;
+        }
+        
+        .form-group {
+            margin-bottom: 12px;
+        }
+        
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 4px;
+            font-size: 0.85em;
+            color: #fff;
+            text-transform: uppercase;
+        }
+        
+        input[type="number"] {
+            width: 100%;
+            padding: 6px;
+            border: 1px solid #fff;
+            background: #000;
+            color: #fff;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 13px;
+        }
+        
+        input[type="number"]:focus {
+            outline: none;
+            border: 2px solid #fff;
+            box-shadow: 0 0 3px #fff;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 8px;
+        }
+        
+        button {
+            flex: 1;
+            padding: 8px 15px;
+            border: 2px solid #fff;
+            background: #000;
+            color: #fff;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .btn-fetch:hover {
+            background: #fff;
+            color: #000;
+        }
+        
+        .btn-fetch:disabled {
+            border-color: #444;
+            color: #444;
+            cursor: not-allowed;
+            background: #000;
+        }
+        
+        .status {
+            margin-top: 8px;
+            padding: 8px;
+            border: 1px solid #fff;
+            font-size: 12px;
+            display: none;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        
+        .status.info {
+            background: #111;
+            border-left: 3px solid #ccc;
+            color: #ccc;
+        }
+        
+        .status.success {
+            background: #111;
+            border-left: 3px solid #fff;
+            color: #fff;
+        }
+        
+        .status.error {
+            background: #111;
+            border-left: 3px solid #888;
+            color: #888;
+        }
+        
+        .anime-info {
+            display: none;
+            background: #000;
+            padding: 12px;
+            border: 1px solid #fff;
+            margin-bottom: 15px;
+        }
+        
+        .anime-info h3 {
+            font-size: 1em;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #fff;
+            text-transform: uppercase;
+        }
+        
+        .anime-info p {
+            color: #ccc;
+            margin-bottom: 4px;
+            font-size: 0.85em;
+        }
+        
+        .sources-section {
+            display: none;
+        }
+        
+        .sources-header {
+            border-bottom: 2px solid #fff;
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+        }
+        
+        .sources-header h2 {
+            font-size: 1.1em;
+            font-weight: bold;
+            display: inline-block;
+            color: #fff;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .source-count {
+            background: #fff;
+            color: #000;
+            padding: 3px 8px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-left: 8px;
+        }
+        
+        .sources-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+        
+        .source-card {
+            background: #000;
+            border: 1px solid #888;
+            padding: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .source-card:hover {
+            border-color: #fff;
+            box-shadow: 0 0 5px #fff;
+        }
+        
+        .source-card.selected {
+            border: 2px solid #fff;
+            background: #111;
+        }
+        
+        .source-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #888;
+        }
+        
+        .provider-badge {
+            padding: 2px 6px;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            border: 1px solid #fff;
+        }
+        
+        .provider-animasu {
+            background: #fff;
+            color: #000;
+        }
+        
+        .provider-samehadaku {
+            background: #000;
+            color: #fff;
+        }
+        
+        .resolution-badge {
+            background: #000;
+            color: #fff;
+            padding: 2px 6px;
+            border: 1px solid #fff;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        
+        .source-info {
+            font-size: 11px;
+            color: #ccc;
+            margin-bottom: 5px;
+        }
+        
+        .source-info strong {
+            color: #fff;
+            font-weight: bold;
+        }
+        
+        .video-status {
+            margin-top: 6px;
+            padding: 4px;
+            font-size: 10px;
+            font-weight: bold;
+            border: 1px solid #888;
+        }
+        
+        .video-status.available {
+            background: #111;
+            color: #fff;
+            border-color: #fff;
+        }
+        
+        .video-status.unavailable {
+            background: #111;
+            color: #888;
+            border-color: #888;
+        }
+        
+        .player-section {
+            display: none;
+            margin-top: 15px;
+            border: 2px solid #fff;
+            padding: 12px;
+            background: #000;
+        }
+        
+        .player-header {
+            border-bottom: 2px solid #fff;
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+        }
+        
+        .player-header h3 {
+            font-size: 1em;
+            font-weight: bold;
+            display: inline-block;
+            color: #fff;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .btn-close {
+            background: #000;
+            color: #fff;
+            padding: 4px 12px;
+            border: 2px solid #fff;
+            cursor: pointer;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 11px;
+            font-weight: bold;
+            float: right;
+            text-transform: uppercase;
+        }
+        
+        .btn-close:hover {
+            background: #fff;
+            color: #000;
+        }
+        
+        video {
+            width: 100%;
+            max-height: 500px;
+            background: #000;
+            border: 1px solid #fff;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.95);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .loading-content {
+            background: #000;
+            padding: 20px;
+            border: 3px solid #fff;
+            text-align: center;
+            font-family: 'Courier New', Courier, monospace;
+            color: #fff;
+        }
+        
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #333;
+            border-top: 4px solid #fff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 12px;
+        }
+        
+        @media (max-width: 768px) {
+            body {
+                padding: 5px;
+                font-size: 12px;
+            }
+            
+            .container {
+                padding: 10px;
+            }
+            
+            h1 {
+                font-size: 1.1em;
+                letter-spacing: 1px;
+            }
+            
+            .sources-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            video {
+                max-height: 300px;
+            }
+            
+            button {
+                font-size: 11px;
+                padding: 6px 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Anime Scraper API - Test Interface</h1>
+        <p class="subtitle">Test video streaming with Blogger extraction and proxy system</p>
+        
+        <!-- Form Section -->
+        <div class="form-section">
+            <div class="form-group">
+                <label for="malId">MyAnimeList ID:</label>
+                <input type="number" id="malId" placeholder="e.g., 21 (One Piece)" value="21">
+            </div>
+            
+            <div class="form-group">
+                <label for="episode">Episode Number:</label>
+                <input type="number" id="episode" placeholder="e.g., 1" value="1">
+            </div>
+            
+            <div class="button-group">
+                <button class="btn-fetch" onclick="fetchStreaming()">
+                    Fetch Streaming Links
+                </button>
+            </div>
+            
+            <div class="status" id="status"></div>
+        </div>
+        
+        <!-- Anime Info -->
+        <div class="anime-info" id="animeInfo">
+            <h3 id="animeTitle">Loading...</h3>
+            <p><strong>MAL ID:</strong> <span id="infoMalId">-</span></p>
+            <p><strong>Episode:</strong> <span id="infoEpisode">-</span></p>
+        </div>
+        
+        <!-- Sources Section -->
+        <div class="sources-section" id="sourcesSection">
+            <div class="sources-header">
+                <h2>Available Sources</h2>
+                <span class="source-count" id="sourceCount">0 sources</span>
+            </div>
+            <div class="sources-grid" id="sourcesGrid"></div>
+        </div>
+        
+        <!-- Video Player -->
+        <div class="player-section" id="playerSection">
+            <div class="player-header">
+                <h3>Video Player</h3>
+                <button class="btn-close" onclick="closePlayer()">Close</button>
+            </div>
+            <video id="videoPlayer" controls autoplay></video>
+        </div>
+    </div>
+    
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <p>Loading streaming sources...</p>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = 'http://localhost:3000';
+        let currentSources = [];
+        
+        async function fetchStreaming() {
+            const malId = document.getElementById('malId').value;
+            const episode = document.getElementById('episode').value;
+            
+            if (!malId || !episode) {
+                showStatus('Please enter MAL ID and Episode number', 'error');
+                return;
+            }
+            
+            showStatus('Fetching streaming links...', 'info');
+            showLoading(true);
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/streaming/${malId}/${episode}`);
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to fetch streaming links');
+                }
+                
+                currentSources = data.sources || [];
+                
+                if (currentSources.length === 0) {
+                    showStatus('No streaming sources found. Try fetching anime details first or check if slug mapping exists.', 'error');
+                    showLoading(false);
+                    return;
+                }
+                
+                // Update anime info
+                document.getElementById('infoMalId').textContent = data.mal_id;
+                document.getElementById('infoEpisode').textContent = data.episode;
+                document.getElementById('animeInfo').style.display = 'block';
+                
+                // Display sources
+                displaySources(currentSources);
+                
+                showStatus(`Successfully loaded ${currentSources.length} streaming source(s)`, 'success');
+                showLoading(false);
+                
+            } catch (error) {
+                console.error('Error:', error);
+                showStatus(`Error: ${error.message}`, 'error');
+                showLoading(false);
+            }
+        }
+        
+        function displaySources(sources) {
+            const grid = document.getElementById('sourcesGrid');
+            grid.innerHTML = '';
+            
+            document.getElementById('sourceCount').textContent = `${sources.length} source${sources.length !== 1 ? 's' : ''}`;
+            document.getElementById('sourcesSection').style.display = 'block';
+            
+            sources.forEach((source, index) => {
+                const card = document.createElement('div');
+                card.className = 'source-card';
+                card.onclick = () => playVideo(source, index);
+                
+                const hasVideoUrl = source.url_video && source.url_video !== null;
+                const isBlogger = source.url.includes('blogger.com');
+                
+                card.innerHTML = `
+                    <div class="source-header">
+                        <span class="provider-badge provider-${source.provider}">
+                            ${source.provider}
+                        </span>
+                        <span class="resolution-badge">${source.resolution}</span>
+                    </div>
+                    
+                    <div class="source-info">
+                        <strong>Server:</strong> ${source.server || 'N/A'}
+                    </div>
+                    
+                    <div class="source-info">
+                        <strong>Type:</strong> ${isBlogger ? '🎥 Blogger' : '🔗 Direct'}
+                    </div>
+                    
+                    ${hasVideoUrl ? `
+                        <div class="video-status available">
+                            ✓ Direct URL Available
+                        </div>
+                    ` : `
+                        <div class="video-status unavailable">
+                            ⚠ Embed Only
+                        </div>
+                    `}
+                `;
+                
+                grid.appendChild(card);
+            });
+        }
+        
+        function playVideo(source, index) {
+            const videoUrl = source.url_video;
+            
+            if (!videoUrl) {
+                showStatus('This source does not have a direct video URL. Try another source.', 'error');
+                return;
+            }
+            
+            // Highlight selected card
+            document.querySelectorAll('.source-card').forEach((card, i) => {
+                card.classList.toggle('selected', i === index);
+            });
+            
+            // Build proxy URL
+            const proxyUrl = `${API_BASE}/api/video-proxy?url=${encodeURIComponent(videoUrl)}`;
+            
+            // Show player
+            const videoPlayer = document.getElementById('videoPlayer');
+            videoPlayer.src = proxyUrl;
+            document.getElementById('playerSection').style.display = 'block';
+            
+            // Scroll to player
+            document.getElementById('playerSection').scrollIntoView({ behavior: 'smooth' });
+            
+            showStatus(`Playing: ${source.provider} - ${source.resolution}`, 'success');
+        }
+        
+        function closePlayer() {
+            const videoPlayer = document.getElementById('videoPlayer');
+            videoPlayer.pause();
+            videoPlayer.src = '';
+            document.getElementById('playerSection').style.display = 'none';
+            
+            // Remove selection
+            document.querySelectorAll('.source-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+        }
+        
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+            status.style.display = 'block';
+        }
+        
+        function showLoading(show) {
+            document.getElementById('loadingOverlay').style.display = show ? 'flex' : 'none';
+        }
+        
+        // Allow Enter key to submit
+        document.getElementById('episode').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                fetchStreaming();
+            }
+        });
+    </script>
+</body>
+</html>

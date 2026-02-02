@@ -11,6 +11,7 @@
     "lint:fix": "eslint . --ext .ts --fix"
   },
   "dependencies": {
+    "@elysiajs/cors": "^1.4.1",
     "@supabase/supabase-js": "^2.93.3",
     "cheerio": "^1.0.0-rc.12",
     "elysia": "^1.0.0",

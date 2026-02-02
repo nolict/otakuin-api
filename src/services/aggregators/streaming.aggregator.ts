@@ -1,4 +1,5 @@
 import { createTimer, logger } from '../../utils/logger';
+import { extractBloggerVideoUrl, isBloggerUrl } from '../extractors/blogger-video.extractor';
 import { getSlugMapping } from '../repositories/slug-mapping.repository';
 import { getStreamingCache, saveStreamingCache } from '../repositories/streaming-cache.repository';
 import { scrapeAnimasuStreaming } from '../scrapers/animasu-streaming.scraper';
@@ -73,6 +74,8 @@ export async function getStreamingLinks(malId: number, episode: number): Promise
 
   await Promise.all(scrapePromises);
 
+  await enrichWithVideoUrls(allSources);
+
   if (allSources.length > 0) {
     await saveStreamingCache({
       mal_id: malId,
@@ -103,4 +106,18 @@ function buildSamehadakuEpisodeUrl(slug: string, episode: number): string {
 function buildAnimasuEpisodeUrl(slug: string, episode: number): string {
   const formattedSlug = slug.replace(/-/g, '-');
   return `${ANIMASU_BASE_URL}${formattedSlug}-episode-${episode}/`;
+}
+
+async function enrichWithVideoUrls(sources: StreamingLink[]): Promise<void> {
+  const extractionPromises = sources.map(async (source) => {
+    if (isBloggerUrl(source.url)) {
+      const timer = logger.createTimer();
+      const videoUrl = await extractBloggerVideoUrl(source.url);
+      source.url_video = videoUrl;
+      const duration = timer.split();
+      logger.perf(duration, { provider: source.provider, has_video: videoUrl !== null && videoUrl !== '' });
+    }
+  });
+
+  await Promise.all(extractionPromises);
 }

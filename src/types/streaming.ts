@@ -3,6 +3,7 @@
 export interface StreamingLink {
   provider: 'samehadaku' | 'animasu';
   url: string;
+  url_video: string | null;
   resolution: string;
   server?: string;
 }

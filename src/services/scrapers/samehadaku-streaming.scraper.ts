@@ -60,6 +60,7 @@ export async function scrapeSamehadakuStreaming(episodeUrl: string): Promise<Str
             return {
               provider: 'samehadaku' as const,
               url: iframeSrc,
+              url_video: null,
               resolution: option.resolution,
               server: option.nume
             };
@@ -71,6 +72,7 @@ export async function scrapeSamehadakuStreaming(episodeUrl: string): Promise<Str
             return {
               provider: 'samehadaku' as const,
               url: videoSrc,
+              url_video: null,
               resolution: option.resolution,
               server: option.nume
             };
@@ -117,6 +119,7 @@ export async function scrapeSamehadakuStreaming(episodeUrl: string): Promise<Str
               sources.push({
                 provider: 'samehadaku',
                 url: href,
+                url_video: null,
                 resolution,
                 server: linkText
               });
@@ -149,6 +152,7 @@ export async function scrapeSamehadakuStreaming(episodeUrl: string): Promise<Str
             sources.push({
               provider: 'samehadaku',
               url: srcMatch[1],
+              url_video: null,
               resolution: resolutionMatch?.[1]?.toLowerCase() ?? 'unknown',
               server: serverMatch?.[1] ?? serverMatch?.[2] ?? undefined
             });
@@ -160,6 +164,7 @@ export async function scrapeSamehadakuStreaming(episodeUrl: string): Promise<Str
             sources.push({
               provider: 'samehadaku',
               url: value,
+              url_video: null,
               resolution: resolutionMatch?.[1]?.toLowerCase() ?? 'unknown'
             });
           }
@@ -169,6 +174,7 @@ export async function scrapeSamehadakuStreaming(episodeUrl: string): Promise<Str
         sources.push({
           provider: 'samehadaku',
           url: value,
+          url_video: null,
           resolution: resolutionMatch?.[1]?.toLowerCase() ?? 'unknown'
         });
       }
@@ -183,6 +189,7 @@ export async function scrapeSamehadakuStreaming(episodeUrl: string): Promise<Str
         sources.push({
           provider: 'samehadaku',
           url: src,
+          url_video: null,
           resolution: 'unknown'
         });
       }
@@ -198,6 +205,7 @@ export async function scrapeSamehadakuStreaming(episodeUrl: string): Promise<Str
           sources.push({
             provider: 'samehadaku',
             url: src,
+            url_video: null,
             resolution: 'unknown'
           });
         }
@@ -214,6 +222,7 @@ export async function scrapeSamehadakuStreaming(episodeUrl: string): Promise<Str
           sources.push({
             provider: 'samehadaku',
             url: src,
+            url_video: null,
             resolution: 'unknown'
           });
         }
@@ -230,6 +239,7 @@ export async function scrapeSamehadakuStreaming(episodeUrl: string): Promise<Str
           sources.push({
             provider: 'samehadaku',
             url: dataSrc,
+            url_video: null,
             resolution: 'unknown'
           });
         }

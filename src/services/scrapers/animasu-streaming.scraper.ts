@@ -39,6 +39,7 @@ export async function scrapeAnimasuStreaming(episodeUrl: string): Promise<Stream
           sources.push({
             provider: 'animasu',
             url: videoUrl,
+            url_video: null,
             resolution: resolutionMatch?.[1] ?? 'unknown',
             server: serverMatch?.[1] ?? undefined
           });

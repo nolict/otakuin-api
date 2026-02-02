@@ -50,23 +50,24 @@ class Logger {
     }
   }
 
-  error(message: string, error?: Error): void {
+  error(message: string, error?: unknown): void {
     if (this.shouldLog(LogLevel.ERROR)) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
       const output = error !== undefined
-        ? `[ERROR] ${message}: ${error.message}`
+        ? `[ERROR] ${message}: ${errorMsg}`
         : `[ERROR] ${message}`;
       console.error(output);
     }
   }
 
-  perf(message: string, details?: Record<string, unknown>): void {
+  perf(duration: string, details?: Record<string, unknown>): void {
     if (this.shouldLog(LogLevel.DEBUG)) {
       const output = details !== undefined
-        ? `[PERF] ${message} ${JSON.stringify(details)}`
-        : `[PERF] ${message}`;
+        ? `[PERF] Completed in ${duration} ${JSON.stringify(details)}`
+        : `[PERF] Completed in ${duration}`;
       console.log(output);
     } else if (this.shouldLog(LogLevel.INFO)) {
-      console.log(`[INFO] ${message}`);
+      console.log(`[INFO] Completed in ${duration}`);
     }
   }
 
@@ -83,6 +84,10 @@ class Logger {
   }
 
   timer(): PerformanceTimer {
+    return new PerformanceTimer(this);
+  }
+
+  createTimer(): PerformanceTimer {
     return new PerformanceTimer(this);
   }
 }
@@ -107,10 +112,9 @@ class PerformanceTimer {
     return duration;
   }
 
-  split(label: string): number {
+  split(): string {
     const duration = performance.now() - this.startTime;
-    this.logger.debug(`${label}: ${this.formatDuration(duration)}`);
-    return duration;
+    return this.formatDuration(duration);
   }
 
   private formatDuration(ms: number): string {
@@ -118,6 +122,10 @@ class PerformanceTimer {
       return `${ms.toFixed(0)}ms`;
     }
     return `${(ms / 1000).toFixed(2)}s`;
+  }
+
+  createTimer(): PerformanceTimer {
+    return new PerformanceTimer(this.logger);
   }
 }
 

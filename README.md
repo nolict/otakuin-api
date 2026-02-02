@@ -16,6 +16,8 @@ This project provides a unified API for accessing anime information from multipl
 - **Slug Detection**: Smart variation generator for season-based anime (Part/Cour/Season/Roman numerals)
 - **Fuzzy Matching**: 70% similarity threshold for flexible slug detection
 - **Episode Merging**: Combines episodes from all sources by episode number
+- **Blogger Video Extraction**: Extract direct Google Video URLs from Blogger embeds
+- **Video Proxy System**: Stream IP-locked videos through server proxy
 - **Type-Safe**: Full TypeScript strict mode with comprehensive type definitions
 - **Developer-Friendly**: Includes DOM inspection tools for rapid scraper development
 - **Production-Ready**: Robust error handling and structured responses
@@ -157,6 +159,94 @@ Scrapes the latest anime releases from Samehadaku.
 **Status Codes:**
 - `200`: Success
 - `500`: Scraping error (returns error object)
+
+#### GET /api/streaming/:mal_id/:episode
+
+Get streaming video sources for a specific anime episode.
+
+**Parameters:**
+- `mal_id`: MyAnimeList ID (integer)
+- `episode`: Episode number (integer)
+
+**Response:**
+```json
+{
+  "mal_id": 21,
+  "episode": 1,
+  "sources": [
+    {
+      "provider": "animasu",
+      "url": "https://www.blogger.com/video.g?token=...",
+      "url_video": "https://googlevideo.com/videoplayback?...",
+      "resolution": "480p",
+      "server": "1"
+    },
+    {
+      "provider": "samehadaku",
+      "url": "https://example.com/embed",
+      "url_video": null,
+      "resolution": "360p"
+    }
+  ]
+}
+```
+
+**Notes:**
+- Sources with `url_video` field have direct video URLs extracted
+- Use `/api/video-proxy` endpoint to stream videos (required for IP-locked URLs)
+
+#### GET /api/video-proxy?url={encoded_video_url}
+
+Proxy endpoint for streaming IP-locked video URLs.
+
+**Query Parameters:**
+- `url`: URL-encoded video URL from `url_video` field
+
+**Response:**
+- Binary video stream (video/mp4)
+- Supports Range headers for seeking
+
+**Example Usage:**
+```javascript
+const source = response.sources[0];
+const proxyUrl = `/api/video-proxy?url=${encodeURIComponent(source.url_video)}`;
+videoElement.src = proxyUrl;
+```
+
+## Application Integration
+
+For detailed integration guides with Flutter, React, and other frameworks, see:
+
+📖 **[Application Integration Guide](DOC-APPS.md)**
+
+Includes:
+- Complete Flutter implementation with video player
+- React/Next.js integration examples
+- API response schemas and error handling
+- Troubleshooting common issues
+
+## Testing
+
+### HTML Test Interface
+
+A web-based test interface is included for testing the streaming API:
+
+```bash
+# Start API server
+bun run dev
+
+# In another terminal, start test server
+cd scripts
+python3 -m http.server 8080
+```
+
+Open `http://localhost:8080/video-test.html` in your browser.
+
+**Features:**
+- Fetch streaming sources by MAL ID and episode
+- Display all available video sources
+- Play videos directly with HTML5 player
+- Simple Linux-style UI
 
 ## Project Structure
 
