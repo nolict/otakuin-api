@@ -238,7 +238,7 @@ function convertToUnifiedAnimeDetail(metadata: AnimeCacheMetadata): UnifiedAnime
     genres: metadata.genres,
     episodes: metadata.episode_list.map((ep) => ({
       number: ep.episode,
-      title: ep.title,
+      title: ep.title ?? `Episode ${ep.episode}`,
       url_samehadaku: ep.sources.find((s) => s.source === 'samehadaku')?.url ?? null,
       url_animasu: ep.sources.find((s) => s.source === 'animasu')?.url ?? null,
       releaseDate: null

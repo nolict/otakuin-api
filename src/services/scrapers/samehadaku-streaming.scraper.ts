@@ -85,7 +85,7 @@ export async function scrapeSamehadakuStreaming(episodeUrl: string): Promise<Str
       });
 
       const ajaxResults = await Promise.all(ajaxPromises);
-      const validSources = ajaxResults.filter((s): s is StreamingLink => s !== null);
+      const validSources = ajaxResults.filter((s): s is NonNullable<typeof s> => s !== null) as StreamingLink[];
       sources.push(...validSources);
     }
 
