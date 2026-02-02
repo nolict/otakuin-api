@@ -32,7 +32,7 @@ const app = new Elysia()
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
   
-  const request = new Request(url, {
+  const request = new Request(url.toString(), {
     method: req.method ?? 'GET',
     headers: new Headers(req.headers as Record<string, string>),
     body: req.method !== 'GET' && req.method !== 'HEAD' ? JSON.stringify(req.body) : undefined
