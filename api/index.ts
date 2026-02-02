@@ -1,3 +1,4 @@
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { cors } from '@elysiajs/cors';
 import { Elysia } from 'elysia';
 
@@ -28,4 +29,35 @@ const app = new Elysia()
     }
   }));
 
-export default app.fetch;
+export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
+  const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
+  
+  const request = new Request(url, {
+    method: req.method ?? 'GET',
+    headers: new Headers(req.headers as Record<string, string>),
+    body: req.method !== 'GET' && req.method !== 'HEAD' ? JSON.stringify(req.body) : undefined
+  });
+
+  try {
+    const response = await app.fetch(request);
+    
+    res.status(response.status);
+    
+    response.headers.forEach((value, key) => {
+      res.setHeader(key, value);
+    });
+
+    if (response.body) {
+      const body = await response.arrayBuffer();
+      res.send(Buffer.from(body));
+    } else {
+      res.end();
+    }
+  } catch (error) {
+    console.error('Handler error:', error);
+    res.status(500).json({ 
+      error: 'Internal Server Error',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+}
