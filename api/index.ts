@@ -31,7 +31,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   // Import and route to specific handlers
   try {
     if (url.startsWith('/api/home')) {
-      const { scrapeHomePage } = await import('../src/services/scrapers/samehadaku-home.scraper');
+      const { scrapeHomePage } = await import('../src/services/scrapers/samehadaku-home.scraper.js');
       const result = await scrapeHomePage();
       res.status(200).json(result.data ?? []);
       return;
@@ -43,7 +43,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         res.status(400).json({ error: 'Invalid MAL ID' });
         return;
       }
-      const { getUnifiedAnimeDetail } = await import('../src/services/aggregators/anime.aggregator');
+      const { getUnifiedAnimeDetail } = await import('../src/services/aggregators/anime.aggregator.js');
       const result = await getUnifiedAnimeDetail(Number(malId));
       res.status(200).json(result);
       return;
@@ -59,7 +59,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         return;
       }
       
-      const { getStreamingLinks } = await import('../src/services/aggregators/streaming.aggregator');
+      const { getStreamingLinks } = await import('../src/services/aggregators/streaming.aggregator.js');
       const result = await getStreamingLinks(Number(malId), Number(episode));
       res.status(200).json(result);
       return;
