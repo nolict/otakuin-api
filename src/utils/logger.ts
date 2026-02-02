@@ -44,9 +44,12 @@ class Logger {
     }
   }
 
-  warn(message: string): void {
+  warn(message: string, data?: Record<string, unknown>): void {
     if (this.shouldLog(LogLevel.WARN)) {
-      console.warn(`[WARN] ${message}`);
+      const output = data !== undefined
+        ? `[WARN] ${message} ${JSON.stringify(data)}`
+        : `[WARN] ${message}`;
+      console.warn(output);
     }
   }
 

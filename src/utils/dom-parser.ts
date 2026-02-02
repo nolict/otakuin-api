@@ -37,7 +37,7 @@ export function parseDOM(html: string): cheerio.CheerioAPI {
   return cheerio.load(html);
 }
 
-export function inspectElement(element: cheerio.Cheerio<cheerio.AnyNode>): DOMElement {
+export function inspectElement(element: cheerio.Cheerio<any>): DOMElement {
   const $el = element.first();
   const firstElement: unknown = $el.get(0);
   const tagName: unknown = $el.prop('tagName');
