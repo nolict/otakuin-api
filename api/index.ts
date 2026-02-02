@@ -33,7 +33,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     if (url.startsWith('/api/home')) {
       const { scrapeHomePage } = await import('../src/services/scrapers/samehadaku-home.scraper.js');
       const result = await scrapeHomePage();
-      res.status(200).json(result.data ?? []);
+      
+      if (!result.success || !result.data) {
+        console.error('Scraping failed:', result.error);
+        res.status(500).json({ 
+          error: 'Scraping failed', 
+          message: result.error ?? 'No data returned',
+          debug: { success: result.success, hasData: !!result.data }
+        });
+        return;
+      }
+      
+      res.status(200).json(result.data);
       return;
     }
     
@@ -45,7 +56,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       }
       const { getUnifiedAnimeDetail } = await import('../src/services/aggregators/anime.aggregator.js');
       const result = await getUnifiedAnimeDetail(Number(malId));
-      res.status(200).json(result);
+      
+      if (!result.success || !result.data) {
+        console.error('Anime detail fetch failed:', result.error);
+        res.status(500).json({ 
+          error: 'Failed to fetch anime details', 
+          message: result.error ?? 'No data returned' 
+        });
+        return;
+      }
+      
+      res.status(200).json(result.data);
       return;
     }
     
