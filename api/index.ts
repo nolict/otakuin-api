@@ -1,58 +1,125 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { cors } from '@elysiajs/cors';
-import { Elysia } from 'elysia';
-
-import { animeRoute } from '../src/api/anime';
-import { homeRoute } from '../src/api/home';
-import { streamingRoutes } from '../src/api/streaming';
-import { videoProxyRoute } from '../src/api/video-proxy';
-
-const app = new Elysia()
-  .use(cors({
-    origin: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Range'],
-    credentials: true
-  }))
-  .use(homeRoute)
-  .use(animeRoute)
-  .use(streamingRoutes)
-  .use(videoProxyRoute)
-  .get('/', () => ({
-    message: 'Anime Scraper API',
-    version: '1.7.0',
-    endpoints: {
-      home: '/api/home',
-      anime: '/api/anime/:id_mal',
-      streaming: '/api/streaming/:id/:episode',
-      videoProxy: '/api/video-proxy?url={encoded_video_url}'
-    }
-  }));
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
-  const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Range');
   
-  const request = new Request(url.toString(), {
-    method: req.method ?? 'GET',
-    headers: new Headers(req.headers as Record<string, string>),
-    body: req.method !== 'GET' && req.method !== 'HEAD' ? JSON.stringify(req.body) : undefined
-  });
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
 
-  try {
-    const response = await app.fetch(request);
-    
-    res.status(response.status);
-    
-    response.headers.forEach((value, key) => {
-      res.setHeader(key, value);
+  const url = req.url ?? '/';
+  
+  // Root endpoint
+  if (url === '/' || url === '') {
+    res.status(200).json({
+      message: 'Anime Scraper API',
+      version: '1.7.0',
+      endpoints: {
+        home: '/api/home',
+        anime: '/api/anime/:id_mal',
+        streaming: '/api/streaming/:id/:episode',
+        videoProxy: '/api/video-proxy?url={encoded_video_url}'
+      }
     });
+    return;
+  }
 
-    if (response.body) {
-      const body = await response.arrayBuffer();
-      res.send(Buffer.from(body));
-    } else {
-      res.end();
+  // Import and route to specific handlers
+  try {
+    if (url.startsWith('/api/home')) {
+      const { scrapeHome } = await import('../src/services/scrapers/samehadaku-home.scraper');
+      const result = await scrapeHome();
+      res.status(200).json(result.data ?? []);
+      return;
     }
+    
+    if (url.startsWith('/api/anime/')) {
+      const malId = url.split('/api/anime/')[1]?.split('?')[0];
+      if (!malId || isNaN(Number(malId))) {
+        res.status(400).json({ error: 'Invalid MAL ID' });
+        return;
+      }
+      const { getUnifiedAnimeDetail } = await import('../src/services/aggregators/anime.aggregator');
+      const result = await getUnifiedAnimeDetail(Number(malId));
+      res.status(200).json(result);
+      return;
+    }
+    
+    if (url.startsWith('/api/streaming/')) {
+      const parts = url.split('/api/streaming/')[1]?.split('/');
+      const malId = parts?.[0];
+      const episode = parts?.[1]?.split('?')[0];
+      
+      if (!malId || !episode || isNaN(Number(malId)) || isNaN(Number(episode))) {
+        res.status(400).json({ error: 'Invalid MAL ID or episode number' });
+        return;
+      }
+      
+      const { getStreamingLinks } = await import('../src/services/aggregators/streaming.aggregator');
+      const result = await getStreamingLinks(Number(malId), Number(episode));
+      res.status(200).json(result);
+      return;
+    }
+    
+    if (url.startsWith('/api/video-proxy')) {
+      const urlParams = new URLSearchParams(url.split('?')[1] ?? '');
+      const videoUrl = urlParams.get('url');
+      
+      if (!videoUrl) {
+        res.status(400).json({ error: 'Missing url parameter' });
+        return;
+      }
+      
+      if (!videoUrl.includes('googlevideo.com')) {
+        res.status(403).json({ error: 'Invalid video URL domain' });
+        return;
+      }
+      
+      const rangeHeader = req.headers.range;
+      const headers: Record<string, string> = { Accept: '*/*' };
+      if (rangeHeader) {
+        headers.Range = rangeHeader;
+      }
+      
+      const response = await fetch(videoUrl, {
+        headers,
+        signal: AbortSignal.timeout(30000)
+      });
+      
+      if (!response.ok) {
+        res.status(response.status).json({ error: `Video source returned ${response.status}` });
+        return;
+      }
+      
+      const contentType = response.headers.get('Content-Type') ?? 'video/mp4';
+      const contentLength = response.headers.get('Content-Length');
+      const acceptRanges = response.headers.get('Accept-Ranges') ?? 'bytes';
+      const contentRange = response.headers.get('Content-Range');
+      
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Accept-Ranges', acceptRanges);
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      
+      if (contentLength) {
+        res.setHeader('Content-Length', contentLength);
+      }
+      if (contentRange) {
+        res.setHeader('Content-Range', contentRange);
+      }
+      if (response.status === 206) {
+        res.status(206);
+      }
+      
+      const buffer = Buffer.from(await response.arrayBuffer());
+      res.send(buffer);
+      return;
+    }
+    
+    res.status(404).json({ error: 'Not found' });
   } catch (error) {
     console.error('Handler error:', error);
     res.status(500).json({ 
