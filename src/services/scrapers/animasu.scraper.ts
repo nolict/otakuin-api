@@ -1,7 +1,7 @@
-import { fetchHTML, parseDOM } from '../../utils/dom-parser.js';
-import { logger } from '../../utils/logger.js';
+import { fetchHTML, parseDOM } from '../../utils/dom-parser';
+import { logger } from '../../utils/logger';
 
-import type { AnimeDetailScraped, AnimeMetadata, Episode, ScraperResult } from '../../types/anime.js';
+import type { AnimeDetailScraped, AnimeMetadata, Episode, ScraperResult } from '../../types/anime';
 
 const ANIMASU_BASE_URL = 'https://v0.animasu.app';
 

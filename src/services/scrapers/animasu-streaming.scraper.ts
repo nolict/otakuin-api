@@ -1,6 +1,6 @@
-import { fetchHTML, parseDOM } from '../../utils/dom-parser.js';
+import { fetchHTML, parseDOM } from '../../utils/dom-parser';
 
-import type { StreamingLink, StreamingScraperResult } from '../../types/streaming.js';
+import type { StreamingLink, StreamingScraperResult } from '../../types/streaming';
 
 /**
  * Scrapes streaming links from Animasu episode page

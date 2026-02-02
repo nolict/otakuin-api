@@ -1,6 +1,6 @@
-import { supabase } from '../clients/supabase.client.js';
+import { supabase } from '../clients/supabase.client';
 
-import type { StreamingLink } from '../../types/streaming.js';
+import type { StreamingLink } from '../../types/streaming';
 
 export interface StreamingCacheData {
   mal_id: number;

@@ -1,11 +1,11 @@
-import { createTimer, logger } from '../../utils/logger.js';
-import { extractBloggerVideoUrl, isBloggerUrl } from '../extractors/blogger-video.extractor.js';
-import { getSlugMapping } from '../repositories/slug-mapping.repository.js';
-import { getStreamingCache, saveStreamingCache } from '../repositories/streaming-cache.repository.js';
-import { scrapeAnimasuStreaming } from '../scrapers/animasu-streaming.scraper.js';
-import { scrapeSamehadakuStreaming } from '../scrapers/samehadaku-streaming.scraper.js';
+import { createTimer, logger } from '../../utils/logger';
+import { extractBloggerVideoUrl, isBloggerUrl } from '../extractors/blogger-video.extractor';
+import { getSlugMapping } from '../repositories/slug-mapping.repository';
+import { getStreamingCache, saveStreamingCache } from '../repositories/streaming-cache.repository';
+import { scrapeAnimasuStreaming } from '../scrapers/animasu-streaming.scraper';
+import { scrapeSamehadakuStreaming } from '../scrapers/samehadaku-streaming.scraper';
 
-import type { StreamingLink, StreamingResponse } from '../../types/streaming.js';
+import type { StreamingLink, StreamingResponse } from '../../types/streaming';
 
 const ANIMASU_BASE_URL = 'https://v0.animasu.app/nonton-';
 const SAMEHADAKU_BASE_URL = 'https://v1.samehadaku.how/';

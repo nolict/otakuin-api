@@ -1,22 +1,22 @@
 import { compareTwoStrings } from 'string-similarity';
 
-import { logger } from '../../utils/logger.js';
-import { fetchAnimeByMalId } from '../clients/jikan.client.js';
-import { calculateMatchV2 } from '../matchers/anime.matcher.js';
-import { findAnimeCacheByMalId, upsertAnimeCache } from '../repositories/anime-cache.repository.js';
-import { findSlugMappingByMalId, upsertSlugMapping } from '../repositories/slug-mapping.repository.js';
-import { scrapeAnimasuDetail } from '../scrapers/animasu.scraper.js';
-import { scrapeSamehadakuDetail } from '../scrapers/samehadaku-detail.scraper.js';
-import { scrapeHomePage } from '../scrapers/samehadaku-home.scraper.js';
+import { logger } from '../../utils/logger';
+import { fetchAnimeByMalId } from '../clients/jikan.client';
+import { calculateMatchV2 } from '../matchers/anime.matcher';
+import { findAnimeCacheByMalId, upsertAnimeCache } from '../repositories/anime-cache.repository';
+import { findSlugMappingByMalId, upsertSlugMapping } from '../repositories/slug-mapping.repository';
+import { scrapeAnimasuDetail } from '../scrapers/animasu.scraper';
+import { scrapeSamehadakuDetail } from '../scrapers/samehadaku-detail.scraper';
+import { scrapeHomePage } from '../scrapers/samehadaku-home.scraper';
 
 import type {
   AnimeDetailScraped,
   ScraperResult,
   UnifiedAnimeDetail,
   UnifiedEpisode
-} from '../../types/anime.js';
-import type { AnimeCacheMetadata } from '../../types/database.js';
-import type { JikanAnimeData } from '../../types/jikan.js';
+} from '../../types/anime';
+import type { AnimeCacheMetadata } from '../../types/database';
+import type { JikanAnimeData } from '../../types/jikan';
 
 function extractSequenceNumber(title: string): number | null {
   const partMatch = title.match(/\bpart\s+(\d+)/i);

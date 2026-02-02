@@ -1,8 +1,8 @@
 import { distance } from 'fastest-levenshtein';
 import { compareTwoStrings } from 'string-similarity';
 
-import type { AnimeMetadata } from '../../types/anime.js';
-import type { JikanAnimeData } from '../../types/jikan.js';
+import type { AnimeMetadata } from '../../types/anime';
+import type { JikanAnimeData } from '../../types/jikan';
 
 export interface MatchResult {
   slug: string;

@@ -1,6 +1,6 @@
 import { Elysia } from 'elysia';
 
-import { logger } from '../utils/logger.js';
+import { logger } from '../utils/logger';
 
 /**
  * Video proxy endpoint for streaming IP-locked URLs

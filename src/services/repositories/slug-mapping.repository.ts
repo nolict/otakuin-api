@@ -1,6 +1,6 @@
-import { supabase } from '../clients/supabase.client.js';
+import { supabase } from '../clients/supabase.client';
 
-import type { SlugMapping, SlugMappingInsert } from '../../types/database.js';
+import type { SlugMapping, SlugMappingInsert } from '../../types/database';
 
 export async function findSlugMappingByMalId(malId: number): Promise<SlugMapping | null> {
   const result = await supabase

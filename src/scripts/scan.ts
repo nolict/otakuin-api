@@ -1,4 +1,4 @@
-import { fetchHTML, inspectElement, parseDOM } from '../utils/dom-parser.js';
+import { fetchHTML, inspectElement, parseDOM } from '../utils/dom-parser';
 
 interface SelectorInfo {
   selector: string;

@@ -1,7 +1,7 @@
 import { Elysia } from 'elysia';
 
-import { getStreamingLinks } from '../services/aggregators/streaming.aggregator.js';
-import { logger } from '../utils/logger.js';
+import { getStreamingLinks } from '../services/aggregators/streaming.aggregator';
+import { logger } from '../utils/logger';
 
 export const streamingRoutes = new Elysia({ prefix: '/api/streaming' })
   .get('/:id/:episode', async ({ params, set }) => {
