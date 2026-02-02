@@ -31,8 +31,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   // Import and route to specific handlers
   try {
     if (url.startsWith('/api/home')) {
-      const { scrapeHome } = await import('../src/services/scrapers/samehadaku-home.scraper');
-      const result = await scrapeHome();
+      const { scrapeHomePage } = await import('../src/services/scrapers/samehadaku-home.scraper');
+      const result = await scrapeHomePage();
       res.status(200).json(result.data ?? []);
       return;
     }
