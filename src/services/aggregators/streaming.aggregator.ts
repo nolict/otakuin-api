@@ -1,8 +1,11 @@
 import { createTimer, logger } from '../../utils/logger';
+import { generateVideoCode } from '../../utils/code-generator';
 import { extractBloggerVideoUrl, isBloggerUrl } from '../extractors/blogger-video.extractor';
 import { extractVidHideProVideoUrl } from '../extractors/vidhidepro-video.extractor';
+import { extractWibufileVideo } from '../extractors/wibufile-video.extractor';
 import { getSlugMapping } from '../repositories/slug-mapping.repository';
 import { getStreamingCache, saveStreamingCache } from '../repositories/streaming-cache.repository';
+import { saveVideoCode } from '../repositories/video-code-cache.repository';
 import { scrapeAnimasuStreaming } from '../scrapers/animasu-streaming.scraper';
 import { scrapeSamehadakuStreaming } from '../scrapers/samehadaku-streaming.scraper';
 
@@ -19,10 +22,11 @@ export async function getStreamingLinks(malId: number, episode: number): Promise
   if (cachedData !== null) {
     logger.info(`Streaming cache HIT for MAL ${malId} Episode ${episode}`);
     logger.perf(`Request completed in ${timer.elapsed()}`, { cached: true });
+    const normalizedSources = cachedData.sources.map(normalizeSourceFieldOrder);
     return {
       mal_id: malId,
       episode,
-      sources: cachedData.sources
+      sources: normalizedSources
     };
   }
 
@@ -76,6 +80,8 @@ export async function getStreamingLinks(malId: number, episode: number): Promise
   await Promise.all(scrapePromises);
 
   await enrichWithVideoUrls(allSources);
+  
+  await generateAndSaveVideoCodes(allSources);
 
   if (allSources.length > 0) {
     await saveStreamingCache({
@@ -93,10 +99,12 @@ export async function getStreamingLinks(malId: number, episode: number): Promise
     source_count: allSources.length
   });
 
+  const normalizedSources = allSources.map(normalizeSourceFieldOrder);
+
   return {
     mal_id: malId,
     episode,
-    sources: allSources
+    sources: normalizedSources
   };
 }
 
@@ -113,6 +121,10 @@ function isVidHideProUrl(url: string): boolean {
   return url.includes('vidhidepro.com') || url.includes('callistanise.com');
 }
 
+function isWibufileUrl(url: string): boolean {
+  return url.includes('api.wibufile.com/embed/');
+}
+
 async function enrichWithVideoUrls(sources: StreamingLink[]): Promise<void> {
   const extractionPromises = sources.map(async (source) => {
     if (isBloggerUrl(source.url)) {
@@ -127,8 +139,36 @@ async function enrichWithVideoUrls(sources: StreamingLink[]): Promise<void> {
       source.url_video = videoUrl;
       const duration = timer.split();
       logger.perf(duration, { provider: source.provider, has_video: videoUrl !== null && videoUrl !== '' });
+    } else if (isWibufileUrl(source.url)) {
+      const timer = logger.createTimer();
+      const videoUrl = await extractWibufileVideo(source);
+      source.url_video = videoUrl;
+      const duration = timer.split();
+      logger.perf(duration, { provider: source.provider, has_video: videoUrl !== null && videoUrl !== '' });
     }
   });
 
   await Promise.all(extractionPromises);
+}
+
+async function generateAndSaveVideoCodes(sources: StreamingLink[]): Promise<void> {
+  const codePromises = sources.map(async (source) => {
+    const code = generateVideoCode();
+    source.code = code;
+    await saveVideoCode(code, source);
+    logger.debug('Video code generated', { code, provider: source.provider, resolution: source.resolution });
+  });
+
+  await Promise.all(codePromises);
+}
+
+function normalizeSourceFieldOrder(source: StreamingLink): StreamingLink {
+  return {
+    code: source.code,
+    provider: source.provider,
+    url: source.url,
+    url_video: source.url_video,
+    resolution: source.resolution,
+    server: source.server
+  };
 }

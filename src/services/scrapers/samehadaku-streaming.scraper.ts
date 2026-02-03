@@ -117,6 +117,7 @@ export async function scrapeSamehadakuStreaming(episodeUrl: string): Promise<Str
             // Only add if it looks like a streaming link
             if (!isFileHost && (href.includes('embed') || href.includes('player') || href.includes('stream'))) {
               sources.push({
+                code: '',
                 provider: 'samehadaku',
                 url: href,
                 url_video: null,
@@ -150,6 +151,7 @@ export async function scrapeSamehadakuStreaming(episodeUrl: string): Promise<Str
             const serverMatch = text.match(/\[(\d+)\]|\((\d+)\)/);
 
             sources.push({
+              code: '',
               provider: 'samehadaku',
               url: srcMatch[1],
               url_video: null,
@@ -162,6 +164,7 @@ export async function scrapeSamehadakuStreaming(episodeUrl: string): Promise<Str
           if (value.startsWith('http')) {
             const resolutionMatch = text.match(/(\d+p)/i);
             sources.push({
+              code: '',
               provider: 'samehadaku',
               url: value,
               url_video: null,
@@ -172,6 +175,7 @@ export async function scrapeSamehadakuStreaming(episodeUrl: string): Promise<Str
       } else if (value.startsWith('http')) {
         const resolutionMatch = text.match(/(\d+p)/i);
         sources.push({
+          code: '',
           provider: 'samehadaku',
           url: value,
           url_video: null,
@@ -187,6 +191,7 @@ export async function scrapeSamehadakuStreaming(episodeUrl: string): Promise<Str
 
       if (src !== undefined && src !== '') {
         sources.push({
+          code: '',
           provider: 'samehadaku',
           url: src,
           url_video: null,
@@ -203,6 +208,7 @@ export async function scrapeSamehadakuStreaming(episodeUrl: string): Promise<Str
 
         if (src !== undefined && src !== '' && !src.includes('facebook') && !src.includes('disqus')) {
           sources.push({
+            code: '',
             provider: 'samehadaku',
             url: src,
             url_video: null,
@@ -220,6 +226,7 @@ export async function scrapeSamehadakuStreaming(episodeUrl: string): Promise<Str
 
         if (src !== undefined && src !== '') {
           sources.push({
+            code: '',
             provider: 'samehadaku',
             url: src,
             url_video: null,
@@ -237,6 +244,7 @@ export async function scrapeSamehadakuStreaming(episodeUrl: string): Promise<Str
 
         if (dataSrc !== undefined && dataSrc !== '' && (dataSrc.includes('embed') || dataSrc.includes('player') || dataSrc.includes('video'))) {
           sources.push({
+            code: '',
             provider: 'samehadaku',
             url: dataSrc,
             url_video: null,

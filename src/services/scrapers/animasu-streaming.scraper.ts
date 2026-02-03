@@ -37,6 +37,7 @@ export async function scrapeAnimasuStreaming(episodeUrl: string): Promise<Stream
           const serverMatch = label.match(/\[(\d+)\]/);
 
           sources.push({
+            code: '',
             provider: 'animasu',
             url: videoUrl,
             url_video: null,

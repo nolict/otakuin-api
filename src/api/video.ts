@@ -1,58 +1,64 @@
 import { Elysia } from 'elysia';
 
 import { logger } from '../utils/logger';
+import { getVideoSourceByCode } from '../services/repositories/video-code-cache.repository';
+import { extractBloggerVideoUrl, isBloggerUrl } from '../services/extractors/blogger-video.extractor';
+import { extractVidHideProVideoUrl } from '../services/extractors/vidhidepro-video.extractor';
+import { extractWibufileVideo } from '../services/extractors/wibufile-video.extractor';
+
+import type { StreamingLink } from '../types/streaming';
 
 /**
- * Video proxy endpoint for streaming IP-locked URLs
- *
- * Problem: Blogger video URLs contain ip={server_ip} parameter
- * Google Video validates that request IP matches URL parameter
- * Client direct access fails because client IP ≠ server IP
- *
- * Solution: Server proxies the video stream
- * - Server fetches video with its own IP (matches URL parameter)
- * - Server streams video chunks directly to client (no buffering)
- * - Supports Range requests for seeking/skipping
- *
- * Performance: ~1-5MB memory per stream, handles 100+ concurrent users
+ * Direct video streaming endpoint using short codes
+ * 
+ * Usage: GET /api/video/:code
+ * Example: GET /api/video/bexi68
+ * 
+ * Returns: Direct video stream or proxied stream
  */
-export const videoProxyRoute = new Elysia({ prefix: '/api' })
-  .get('/video-proxy', async ({ query, set, request }) => {
-    const videoUrl = query.url;
+export const videoRoute = new Elysia({ prefix: '/api' })
+  .get('/video/:code', async ({ params, set, request }) => {
+    const { code } = params;
 
-    if (videoUrl === undefined || videoUrl === '') {
-      set.status = 400;
-      return { error: 'Missing url parameter' };
+    logger.info(`Video stream requested with code: ${code}`);
+
+    const source = await getVideoSourceByCode(code);
+
+    if (source === null) {
+      set.status = 404;
+      return { error: 'Video code not found or expired' };
     }
 
-    // Security: Only allow trusted video domains
-    const allowedDomains = [
-      'googlevideo.com',
-      'dramiyos-cdn.com',
-      'technologyportal.site',
-      'callistanise.com',
-      'vidhidepro.com',
-      'vidhidefast.com',
-      'tiktokcdn.com', // HLS segments from VidHidePro
-      'wibufile.com' // Wibufile direct video URLs
-    ];
-    
-    const isAllowed = allowedDomains.some(domain => videoUrl.includes(domain));
-    
-    if (!isAllowed) {
-      set.status = 403;
-      return { error: 'Invalid video URL domain' };
+    logger.debug('Video source found', { 
+      provider: source.provider, 
+      resolution: source.resolution,
+      has_url_video: source.url_video !== null 
+    });
+
+    let videoUrl = source.url_video;
+
+    if (videoUrl === null || videoUrl === '') {
+      logger.debug('url_video not available, attempting extraction');
+
+      if (isBloggerUrl(source.url)) {
+        videoUrl = await extractBloggerVideoUrl(source.url);
+      } else if (isVidHideProUrl(source.url)) {
+        videoUrl = await extractVidHideProVideoUrl(source.url);
+      } else if (isWibufileUrl(source.url)) {
+        videoUrl = await extractWibufileVideo(source);
+      }
+
+      if (videoUrl === null || videoUrl === '') {
+        logger.warn('Failed to extract video URL, falling back to embed URL');
+        videoUrl = source.url;
+      }
     }
 
     try {
-      logger.debug('Proxying video stream', { url: videoUrl.substring(0, 100) });
+      logger.debug('Streaming video', { url: videoUrl.substring(0, 100) });
 
-      // Forward Range header for seeking support
       const rangeHeader = request.headers.get('range');
 
-      // Critical: Google Video rejects known User-Agent headers
-      // Solution: Don't send User-Agent at all (raw request works!)
-      // HLS streams: Need Referer header for some CDNs
       const headers: Record<string, string> = {
         Accept: '*/*'
       };
@@ -60,32 +66,27 @@ export const videoProxyRoute = new Elysia({ prefix: '/api' })
       if (rangeHeader !== null) {
         headers.Range = rangeHeader;
       }
-      
-      // Add Referer for VidHidePro/Callistanise domains
+
       if (videoUrl.includes('dramiyos-cdn.com') || videoUrl.includes('technologyportal.site') || videoUrl.includes('callistanise.com')) {
         headers.Referer = 'https://callistanise.com/';
       }
 
-      // Fetch video from source (follow redirects automatically)
       const response = await fetch(videoUrl, {
         headers,
-        redirect: 'follow', // Follow 301/302 redirects
-        signal: AbortSignal.timeout(30000) // 30-second timeout
+        redirect: 'follow',
+        signal: AbortSignal.timeout(30000)
       });
 
       if (!response.ok) {
-        logger.warn('Video fetch failed', { status: response.status, url: videoUrl.substring(0, 100) });
+        logger.warn('Video fetch failed', { status: response.status });
         set.status = response.status;
         return { error: `Video source returned ${response.status}` };
       }
 
-      // Handle partial content (Range requests)
       if (response.status === 206) {
         set.status = 206;
       }
 
-      // Set response headers for video streaming
-      // Auto-detect content type (MP4, HLS m3u8, etc.)
       const contentType = response.headers.get('Content-Type') ?? 
         (videoUrl.includes('.m3u8') ? 'application/vnd.apple.mpegurl' : 'video/mp4');
       const contentLength = response.headers.get('Content-Length');
@@ -105,34 +106,22 @@ export const videoProxyRoute = new Elysia({ prefix: '/api' })
         set.headers['Content-Range'] = contentRange;
       }
 
-      logger.debug('Video stream started', {
-        content_type: contentType,
-        content_length: contentLength ?? 'chunked',
-        status: response.status
-      });
-
-      // Special handling for HLS playlists - convert relative URLs to absolute
       if (contentType.includes('mpegurl') || videoUrl.includes('.m3u8')) {
         const text = await response.text();
         const baseUrl = new URL(videoUrl);
         const basePath = baseUrl.origin + baseUrl.pathname.substring(0, baseUrl.pathname.lastIndexOf('/') + 1);
         
-        // Replace relative URLs in playlist with absolute URLs
         const modifiedPlaylist = text.split('\n').map(line => {
-          // Skip comments and empty lines
           if (line.startsWith('#') || line.trim() === '') {
             return line;
           }
           
-          // If line is a relative URL (not starting with http), make it absolute
           if (!line.startsWith('http') && !line.startsWith('#')) {
             return basePath + line.trim();
           }
           
           return line;
         }).join('\n');
-        
-        logger.debug('HLS playlist modified', { original_lines: text.split('\n').length, base_path: basePath });
         
         return new Response(modifiedPlaylist, {
           status: response.status,
@@ -144,7 +133,6 @@ export const videoProxyRoute = new Elysia({ prefix: '/api' })
         });
       }
 
-      // Return raw Response object to preserve binary stream
       return new Response(response.body, {
         status: response.status,
         headers: {
@@ -158,9 +146,17 @@ export const videoProxyRoute = new Elysia({ prefix: '/api' })
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('Video proxy error', { error: errorMessage });
+      logger.error('Video stream error', { error: errorMessage });
 
       set.status = 500;
-      return { error: 'Failed to proxy video stream' };
+      return { error: 'Failed to stream video' };
     }
   });
+
+function isVidHideProUrl(url: string): boolean {
+  return url.includes('vidhidepro.com') || url.includes('callistanise.com');
+}
+
+function isWibufileUrl(url: string): boolean {
+  return url.includes('api.wibufile.com/embed/');
+}

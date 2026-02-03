@@ -520,11 +520,13 @@
                 const hasVideoUrl = source.url_video && source.url_video !== null;
                 const isBlogger = source.url.includes('blogger.com');
                 const isVidHidePro = source.url.includes('vidhidepro.com') || source.url.includes('callistanise.com');
+                const isWibufile = source.url.includes('wibufile.com');
                 
                 // Determine source type
                 let sourceType = '🔗 Direct';
                 if (isBlogger) sourceType = '🎥 Blogger';
                 if (isVidHidePro) sourceType = '📺 VidHidePro';
+                if (isWibufile) sourceType = '📦 Wibufile';
                 
                 card.innerHTML = `
                     <div class="source-header">
@@ -540,6 +542,18 @@
                     
                     <div class="source-info">
                         <strong>Type:</strong> ${sourceType}
+                    </div>
+                    
+                    <div class="source-info">
+                        <strong>Code:</strong> <span style="color: #0f0; font-weight: bold;">${source.code}</span>
+                    </div>
+                    
+                    <div class="source-info" style="margin-top: 8px;">
+                        <a href="http://localhost:3000/api/video/${source.code}" 
+                           target="_blank" 
+                           style="color: #fff; text-decoration: none; padding: 4px 8px; border: 1px solid #fff; display: inline-block; font-size: 11px;">
+                            ▶ PLAY DIRECT
+                        </a>
                     </div>
                     
                     ${hasVideoUrl ? `

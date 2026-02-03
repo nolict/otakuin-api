@@ -114,12 +114,61 @@ COMMENT ON COLUMN streaming_cache.sources IS 'Array of streaming links with prov
 COMMENT ON COLUMN streaming_cache.expires_at IS 'Cache expiration timestamp (20 minutes from creation)';
 
 
+-- Table 4: Video Code Cache (Temporary Storage - 24 hours TTL)
+-- Purpose: Map short codes to video source data for easy streaming access
+CREATE TABLE IF NOT EXISTS video_code_cache (
+  id BIGSERIAL PRIMARY KEY,
+  code VARCHAR(6) NOT NULL UNIQUE,
+  source_data JSONB NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Index for fast code lookup
+CREATE INDEX IF NOT EXISTS idx_video_code_cache_code ON video_code_cache(code);
+
+-- Index for automatic cleanup of expired entries
+CREATE INDEX IF NOT EXISTS idx_video_code_cache_expires_at ON video_code_cache(expires_at);
+
+-- Comments for documentation
+COMMENT ON TABLE video_code_cache IS 'Temporary cache for video short codes with 24 hour TTL';
+COMMENT ON COLUMN video_code_cache.code IS 'Short 6-character alphanumeric code (e.g., bexi68)';
+COMMENT ON COLUMN video_code_cache.source_data IS 'Full StreamingLink object with provider, url, url_video, resolution, server';
+COMMENT ON COLUMN video_code_cache.expires_at IS 'Cache expiration timestamp (24 hours from creation)';
+
+
+-- Update cleanup function to include video_code_cache
+CREATE OR REPLACE FUNCTION cleanup_expired_cache()
+RETURNS INTEGER AS $$
+DECLARE
+  deleted_anime INTEGER;
+  deleted_streaming INTEGER;
+  deleted_video_code INTEGER;
+  total_deleted INTEGER;
+BEGIN
+  DELETE FROM anime_cache WHERE expires_at < NOW();
+  GET DIAGNOSTICS deleted_anime = ROW_COUNT;
+  
+  DELETE FROM streaming_cache WHERE expires_at < NOW();
+  GET DIAGNOSTICS deleted_streaming = ROW_COUNT;
+  
+  DELETE FROM video_code_cache WHERE expires_at < NOW();
+  GET DIAGNOSTICS deleted_video_code = ROW_COUNT;
+  
+  total_deleted := deleted_anime + deleted_streaming + deleted_video_code;
+  RETURN total_deleted;
+END;
+$$ LANGUAGE plpgsql;
+
+
 -- Optional: Enable Row Level Security (RLS) for production
 -- ALTER TABLE slug_mappings ENABLE ROW LEVEL SECURITY;
 -- ALTER TABLE anime_cache ENABLE ROW LEVEL SECURITY;
 -- ALTER TABLE streaming_cache ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE video_code_cache ENABLE ROW LEVEL SECURITY;
 
 -- Optional: Create policies for API access
 -- CREATE POLICY "Allow read access to all users" ON slug_mappings FOR SELECT USING (true);
 -- CREATE POLICY "Allow read access to all users" ON anime_cache FOR SELECT USING (true);
 -- CREATE POLICY "Allow read access to all users" ON streaming_cache FOR SELECT USING (true);
+-- CREATE POLICY "Allow read access to all users" ON video_code_cache FOR SELECT USING (true);

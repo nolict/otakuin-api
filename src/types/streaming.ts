@@ -1,6 +1,7 @@
 // Streaming-related type definitions
 
 export interface StreamingLink {
+  code: string;
   provider: 'samehadaku' | 'animasu';
   url: string;
   url_video: string | null;
