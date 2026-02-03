@@ -23,10 +23,11 @@ export async function getStreamingLinks(malId: number, episode: number): Promise
     logger.info(`Streaming cache HIT for MAL ${malId} Episode ${episode}`);
     logger.perf(`Request completed in ${timer.elapsed()}`, { cached: true });
     const normalizedSources = cachedData.sources.map(normalizeSourceFieldOrder);
+    const sortedSources = sortSources(normalizedSources);
     return {
       mal_id: malId,
       episode,
-      sources: normalizedSources
+      sources: sortedSources
     };
   }
 
@@ -100,11 +101,12 @@ export async function getStreamingLinks(malId: number, episode: number): Promise
   });
 
   const normalizedSources = allSources.map(normalizeSourceFieldOrder);
+  const sortedSources = sortSources(normalizedSources);
 
   return {
     mal_id: malId,
     episode,
-    sources: normalizedSources
+    sources: sortedSources
   };
 }
 
@@ -171,4 +173,31 @@ function normalizeSourceFieldOrder(source: StreamingLink): StreamingLink {
     resolution: source.resolution,
     server: source.server
   };
+}
+
+function sortSources(sources: StreamingLink[]): StreamingLink[] {
+  const resolutionOrder: Record<string, number> = {
+    '1080p': 1,
+    '720p': 2,
+    '480p': 3,
+    '360p': 4,
+    'unknown': 5
+  };
+
+  return sources.sort((a, b) => {
+    if (a.provider !== b.provider) {
+      return a.provider.localeCompare(b.provider);
+    }
+
+    const resA = resolutionOrder[a.resolution] ?? 999;
+    const resB = resolutionOrder[b.resolution] ?? 999;
+
+    if (resA !== resB) {
+      return resA - resB;
+    }
+
+    const serverA = a.server !== undefined ? parseInt(a.server) : 999;
+    const serverB = b.server !== undefined ? parseInt(b.server) : 999;
+    return serverA - serverB;
+  });
 }
