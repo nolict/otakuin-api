@@ -1,21 +1,21 @@
 import { Elysia } from 'elysia';
 
-import { logger } from '../utils/logger';
-import { getVideoSourceByCode } from '../services/repositories/video-code-cache.repository';
 import { extractBloggerVideoUrl, isBloggerUrl } from '../services/extractors/blogger-video.extractor';
+import { extractFiledonVideoUrl, isFiledonUrl } from '../services/extractors/filedon-video.extractor';
 import { extractVidHideProVideoUrl } from '../services/extractors/vidhidepro-video.extractor';
-import { extractWibufileVideo } from '../services/extractors/wibufile-video.extractor';
-
-import type { StreamingLink } from '../types/streaming';
+import { extractWibufileVideo, isWibufileUrl } from '../services/extractors/wibufile-video.extractor';
+import { getVideoSourceByCode } from '../services/repositories/video-code-cache.repository';
+import { logger } from '../utils/logger';
 
 /**
  * Direct video streaming endpoint using short codes
- * 
+ *
  * Usage: GET /api/video/:code
  * Example: GET /api/video/bexi68
- * 
+ *
  * Returns: Direct video stream or proxied stream
  */
+
 export const videoRoute = new Elysia({ prefix: '/api' })
   .get('/video/:code', async ({ params, set, request }) => {
     const { code } = params;
@@ -29,10 +29,10 @@ export const videoRoute = new Elysia({ prefix: '/api' })
       return { error: 'Video code not found or expired' };
     }
 
-    logger.debug('Video source found', { 
-      provider: source.provider, 
+    logger.debug('Video source found', {
+      provider: source.provider,
       resolution: source.resolution,
-      has_url_video: source.url_video !== null 
+      has_url_video: source.url_video !== null
     });
 
     let videoUrl = source.url_video;
@@ -46,6 +46,8 @@ export const videoRoute = new Elysia({ prefix: '/api' })
         videoUrl = await extractVidHideProVideoUrl(source.url);
       } else if (isWibufileUrl(source.url)) {
         videoUrl = await extractWibufileVideo(source);
+      } else if (isFiledonUrl(source.url)) {
+        videoUrl = await extractFiledonVideoUrl(source.url);
       }
 
       if (videoUrl === null || videoUrl === '') {
@@ -87,8 +89,18 @@ export const videoRoute = new Elysia({ prefix: '/api' })
         set.status = 206;
       }
 
-      const contentType = response.headers.get('Content-Type') ?? 
+      let contentType = response.headers.get('Content-Type') ??
         (videoUrl.includes('.m3u8') ? 'application/vnd.apple.mpegurl' : 'video/mp4');
+
+      // Fix Content-Type for video files (some providers send application/octet-stream)
+      if (contentType === 'application/octet-stream' || contentType.includes('octet-stream')) {
+        if (videoUrl.includes('.m3u8')) {
+          contentType = 'application/vnd.apple.mpegurl';
+        } else {
+          contentType = 'video/mp4';
+        }
+      }
+
       const contentLength = response.headers.get('Content-Length');
       const acceptRanges = response.headers.get('Accept-Ranges') ?? 'bytes';
       const contentRange = response.headers.get('Content-Range');
@@ -97,6 +109,8 @@ export const videoRoute = new Elysia({ prefix: '/api' })
       set.headers['Accept-Ranges'] = acceptRanges;
       set.headers['Access-Control-Allow-Origin'] = '*';
       set.headers['Cache-Control'] = 'public, max-age=3600';
+      // Override Content-Disposition to force inline (streaming) instead of attachment (download)
+      set.headers['Content-Disposition'] = 'inline';
 
       if (contentLength !== null) {
         set.headers['Content-Length'] = contentLength;
@@ -110,23 +124,24 @@ export const videoRoute = new Elysia({ prefix: '/api' })
         const text = await response.text();
         const baseUrl = new URL(videoUrl);
         const basePath = baseUrl.origin + baseUrl.pathname.substring(0, baseUrl.pathname.lastIndexOf('/') + 1);
-        
+
         const modifiedPlaylist = text.split('\n').map(line => {
           if (line.startsWith('#') || line.trim() === '') {
             return line;
           }
-          
+
           if (!line.startsWith('http') && !line.startsWith('#')) {
             return basePath + line.trim();
           }
-          
+
           return line;
         }).join('\n');
-        
+
         return new Response(modifiedPlaylist, {
           status: response.status,
           headers: {
             'Content-Type': contentType,
+            'Content-Disposition': 'inline',
             'Access-Control-Allow-Origin': '*',
             'Cache-Control': 'public, max-age=3600'
           }
@@ -137,6 +152,7 @@ export const videoRoute = new Elysia({ prefix: '/api' })
         status: response.status,
         headers: {
           'Content-Type': contentType,
+          'Content-Disposition': 'inline',
           'Accept-Ranges': acceptRanges,
           'Content-Length': contentLength ?? '',
           'Content-Range': contentRange ?? '',
@@ -155,8 +171,4 @@ export const videoRoute = new Elysia({ prefix: '/api' })
 
 function isVidHideProUrl(url: string): boolean {
   return url.includes('vidhidepro.com') || url.includes('callistanise.com');
-}
-
-function isWibufileUrl(url: string): boolean {
-  return url.includes('api.wibufile.com/embed/');
 }

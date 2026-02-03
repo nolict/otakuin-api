@@ -34,11 +34,12 @@ export const videoProxyRoute = new Elysia({ prefix: '/api' })
       'vidhidepro.com',
       'vidhidefast.com',
       'tiktokcdn.com', // HLS segments from VidHidePro
-      'wibufile.com' // Wibufile direct video URLs
+      'wibufile.com', // Wibufile direct video URLs
+      'cloudflarestorage.com' // Filedon R2 storage
     ];
-    
+
     const isAllowed = allowedDomains.some(domain => videoUrl.includes(domain));
-    
+
     if (!isAllowed) {
       set.status = 403;
       return { error: 'Invalid video URL domain' };
@@ -60,7 +61,7 @@ export const videoProxyRoute = new Elysia({ prefix: '/api' })
       if (rangeHeader !== null) {
         headers.Range = rangeHeader;
       }
-      
+
       // Add Referer for VidHidePro/Callistanise domains
       if (videoUrl.includes('dramiyos-cdn.com') || videoUrl.includes('technologyportal.site') || videoUrl.includes('callistanise.com')) {
         headers.Referer = 'https://callistanise.com/';
@@ -86,7 +87,7 @@ export const videoProxyRoute = new Elysia({ prefix: '/api' })
 
       // Set response headers for video streaming
       // Auto-detect content type (MP4, HLS m3u8, etc.)
-      const contentType = response.headers.get('Content-Type') ?? 
+      const contentType = response.headers.get('Content-Type') ??
         (videoUrl.includes('.m3u8') ? 'application/vnd.apple.mpegurl' : 'video/mp4');
       const contentLength = response.headers.get('Content-Length');
       const acceptRanges = response.headers.get('Accept-Ranges') ?? 'bytes';
@@ -96,6 +97,8 @@ export const videoProxyRoute = new Elysia({ prefix: '/api' })
       set.headers['Accept-Ranges'] = acceptRanges;
       set.headers['Access-Control-Allow-Origin'] = '*';
       set.headers['Cache-Control'] = 'public, max-age=3600';
+      // Override Content-Disposition to force inline (streaming) instead of attachment (download)
+      set.headers['Content-Disposition'] = 'inline';
 
       if (contentLength !== null) {
         set.headers['Content-Length'] = contentLength;
@@ -116,24 +119,24 @@ export const videoProxyRoute = new Elysia({ prefix: '/api' })
         const text = await response.text();
         const baseUrl = new URL(videoUrl);
         const basePath = baseUrl.origin + baseUrl.pathname.substring(0, baseUrl.pathname.lastIndexOf('/') + 1);
-        
+
         // Replace relative URLs in playlist with absolute URLs
         const modifiedPlaylist = text.split('\n').map(line => {
           // Skip comments and empty lines
           if (line.startsWith('#') || line.trim() === '') {
             return line;
           }
-          
+
           // If line is a relative URL (not starting with http), make it absolute
           if (!line.startsWith('http') && !line.startsWith('#')) {
             return basePath + line.trim();
           }
-          
+
           return line;
         }).join('\n');
-        
+
         logger.debug('HLS playlist modified', { original_lines: text.split('\n').length, base_path: basePath });
-        
+
         return new Response(modifiedPlaylist, {
           status: response.status,
           headers: {
@@ -149,6 +152,7 @@ export const videoProxyRoute = new Elysia({ prefix: '/api' })
         status: response.status,
         headers: {
           'Content-Type': contentType,
+          'Content-Disposition': 'inline', // Force streaming instead of download
           'Accept-Ranges': acceptRanges,
           'Content-Length': contentLength ?? '',
           'Content-Range': contentRange ?? '',

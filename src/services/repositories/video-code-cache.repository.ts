@@ -1,5 +1,5 @@
-import { supabase } from '../clients/supabase.client';
 import { logger } from '../../utils/logger';
+import { supabase } from '../clients/supabase.client';
 
 import type { StreamingLink } from '../../types/streaming';
 
@@ -27,8 +27,8 @@ export async function saveVideoCode(code: string, source: StreamingLink): Promis
       logger.debug('Video code saved', { code, expires_at: expiresAt });
     }
   } catch (error) {
-    logger.error('Video code save error', { 
-      error: error instanceof Error ? error.message : String(error) 
+    logger.error('Video code save error', {
+      error: error instanceof Error ? error.message : String(error)
     });
   }
 }
@@ -57,8 +57,8 @@ export async function getVideoSourceByCode(code: string): Promise<StreamingLink 
     return row.source_data;
 
   } catch (error) {
-    logger.error('Video code lookup error', { 
-      error: error instanceof Error ? error.message : String(error) 
+    logger.error('Video code lookup error', {
+      error: error instanceof Error ? error.message : String(error)
     });
     return null;
   }

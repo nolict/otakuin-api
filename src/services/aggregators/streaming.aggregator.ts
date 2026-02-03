@@ -1,8 +1,9 @@
-import { createTimer, logger } from '../../utils/logger';
 import { generateVideoCode } from '../../utils/code-generator';
+import { createTimer, logger } from '../../utils/logger';
 import { extractBloggerVideoUrl, isBloggerUrl } from '../extractors/blogger-video.extractor';
+import { extractFiledonVideoUrl, isFiledonUrl } from '../extractors/filedon-video.extractor';
 import { extractVidHideProVideoUrl } from '../extractors/vidhidepro-video.extractor';
-import { extractWibufileVideo } from '../extractors/wibufile-video.extractor';
+import { extractWibufileVideo, isWibufileUrl } from '../extractors/wibufile-video.extractor';
 import { getSlugMapping } from '../repositories/slug-mapping.repository';
 import { getStreamingCache, saveStreamingCache } from '../repositories/streaming-cache.repository';
 import { saveVideoCode } from '../repositories/video-code-cache.repository';
@@ -81,7 +82,7 @@ export async function getStreamingLinks(malId: number, episode: number): Promise
   await Promise.all(scrapePromises);
 
   await enrichWithVideoUrls(allSources);
-  
+
   await generateAndSaveVideoCodes(allSources);
 
   if (allSources.length > 0) {
@@ -123,10 +124,6 @@ function isVidHideProUrl(url: string): boolean {
   return url.includes('vidhidepro.com') || url.includes('callistanise.com');
 }
 
-function isWibufileUrl(url: string): boolean {
-  return url.includes('api.wibufile.com/embed/');
-}
-
 async function enrichWithVideoUrls(sources: StreamingLink[]): Promise<void> {
   const extractionPromises = sources.map(async (source) => {
     if (isBloggerUrl(source.url)) {
@@ -144,6 +141,12 @@ async function enrichWithVideoUrls(sources: StreamingLink[]): Promise<void> {
     } else if (isWibufileUrl(source.url)) {
       const timer = logger.createTimer();
       const videoUrl = await extractWibufileVideo(source);
+      source.url_video = videoUrl;
+      const duration = timer.split();
+      logger.perf(duration, { provider: source.provider, has_video: videoUrl !== null && videoUrl !== '' });
+    } else if (isFiledonUrl(source.url)) {
+      const timer = logger.createTimer();
+      const videoUrl = await extractFiledonVideoUrl(source.url);
       source.url_video = videoUrl;
       const duration = timer.split();
       logger.perf(duration, { provider: source.provider, has_video: videoUrl !== null && videoUrl !== '' });
@@ -181,7 +184,7 @@ function sortSources(sources: StreamingLink[]): StreamingLink[] {
     '720p': 2,
     '480p': 3,
     '360p': 4,
-    'unknown': 5
+    unknown: 5
   };
 
   return sources.sort((a, b) => {
