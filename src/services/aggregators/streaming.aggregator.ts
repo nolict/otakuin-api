@@ -1,5 +1,6 @@
 import { createTimer, logger } from '../../utils/logger';
 import { extractBloggerVideoUrl, isBloggerUrl } from '../extractors/blogger-video.extractor';
+import { extractVidHideProVideoUrl } from '../extractors/vidhidepro-video.extractor';
 import { getSlugMapping } from '../repositories/slug-mapping.repository';
 import { getStreamingCache, saveStreamingCache } from '../repositories/streaming-cache.repository';
 import { scrapeAnimasuStreaming } from '../scrapers/animasu-streaming.scraper';
@@ -108,11 +109,21 @@ function buildAnimasuEpisodeUrl(slug: string, episode: number): string {
   return `${ANIMASU_BASE_URL}${formattedSlug}-episode-${episode}/`;
 }
 
+function isVidHideProUrl(url: string): boolean {
+  return url.includes('vidhidepro.com') || url.includes('callistanise.com');
+}
+
 async function enrichWithVideoUrls(sources: StreamingLink[]): Promise<void> {
   const extractionPromises = sources.map(async (source) => {
     if (isBloggerUrl(source.url)) {
       const timer = logger.createTimer();
       const videoUrl = await extractBloggerVideoUrl(source.url);
+      source.url_video = videoUrl;
+      const duration = timer.split();
+      logger.perf(duration, { provider: source.provider, has_video: videoUrl !== null && videoUrl !== '' });
+    } else if (isVidHideProUrl(source.url)) {
+      const timer = logger.createTimer();
+      const videoUrl = await extractVidHideProVideoUrl(source.url);
       source.url_video = videoUrl;
       const duration = timer.split();
       logger.perf(duration, { provider: source.provider, has_video: videoUrl !== null && videoUrl !== '' });

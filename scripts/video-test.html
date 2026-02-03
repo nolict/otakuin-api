@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Anime Scraper API - Test Interface</title>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <style>
         * {
             margin: 0;
@@ -518,6 +519,12 @@
                 
                 const hasVideoUrl = source.url_video && source.url_video !== null;
                 const isBlogger = source.url.includes('blogger.com');
+                const isVidHidePro = source.url.includes('vidhidepro.com') || source.url.includes('callistanise.com');
+                
+                // Determine source type
+                let sourceType = '🔗 Direct';
+                if (isBlogger) sourceType = '🎥 Blogger';
+                if (isVidHidePro) sourceType = '📺 VidHidePro';
                 
                 card.innerHTML = `
                     <div class="source-header">
@@ -532,7 +539,7 @@
                     </div>
                     
                     <div class="source-info">
-                        <strong>Type:</strong> ${isBlogger ? '🎥 Blogger' : '🔗 Direct'}
+                        <strong>Type:</strong> ${sourceType}
                     </div>
                     
                     ${hasVideoUrl ? `
@@ -550,6 +557,8 @@
             });
         }
         
+        let hls = null;
+        
         function playVideo(source, index) {
             const videoUrl = source.url_video;
             
@@ -563,24 +572,97 @@
                 card.classList.toggle('selected', i === index);
             });
             
-            // Build proxy URL
-            const proxyUrl = `${API_BASE}/api/video-proxy?url=${encodeURIComponent(videoUrl)}`;
-            
             // Show player
             const videoPlayer = document.getElementById('videoPlayer');
-            videoPlayer.src = proxyUrl;
             document.getElementById('playerSection').style.display = 'block';
+            
+            // Check if it's HLS stream (m3u8)
+            const isHLS = videoUrl.includes('.m3u8');
+            
+            // For HLS streams, try direct URL first (no proxy needed for absolute segments)
+            // For MP4/Blogger, use proxy
+            const playUrl = isHLS ? videoUrl : `${API_BASE}/api/video-proxy?url=${encodeURIComponent(videoUrl)}`;
+            
+            if (isHLS && Hls.isSupported()) {
+                // Destroy previous HLS instance
+                if (hls) {
+                    hls.destroy();
+                }
+                
+                // Use HLS.js for m3u8 streams with proxy for all requests
+                hls = new Hls({
+                    debug: true, // Enable debug for troubleshooting
+                    enableWorker: true,
+                    lowLatencyMode: false,
+                    xhrSetup: function(xhr, url) {
+                        // Proxy ALL requests (manifest + segments) through our backend
+                        // This solves CORS and IP-locking issues
+                        const proxyUrl = `${API_BASE}/api/video-proxy?url=${encodeURIComponent(url)}`;
+                        xhr.open('GET', proxyUrl, true);
+                        xhr.withCredentials = false;
+                    }
+                });
+                
+                console.log('Loading HLS source (via proxy):', playUrl);
+                
+                hls.loadSource(playUrl);
+                hls.attachMedia(videoPlayer);
+                
+                hls.on(Hls.Events.MANIFEST_PARSED, function(event, data) {
+                    console.log('HLS Manifest parsed:', data);
+                    videoPlayer.play().then(() => {
+                        console.log('Video playback started');
+                        showStatus(`Playing HLS: ${source.provider} - ${source.resolution}`, 'success');
+                    }).catch(err => {
+                        console.error('Play failed:', err);
+                        showStatus(`Play failed: ${err.message}`, 'error');
+                    });
+                });
+                
+                hls.on(Hls.Events.FRAG_LOADED, function(event, data) {
+                    console.log('Fragment loaded:', data.frag.url);
+                });
+                
+                hls.on(Hls.Events.ERROR, function(event, data) {
+                    if (data.fatal) {
+                        console.error('HLS Fatal Error:', data);
+                        showStatus(`HLS Error: ${data.type} - ${data.details}`, 'error');
+                        
+                        // Try with proxy as fallback
+                        if (playUrl === videoUrl) {
+                            console.log('Retrying with proxy...');
+                            const proxyUrl = `${API_BASE}/api/video-proxy?url=${encodeURIComponent(videoUrl)}`;
+                            hls.loadSource(proxyUrl);
+                        }
+                    }
+                });
+            } else if (isHLS && videoPlayer.canPlayType('application/vnd.apple.mpegurl')) {
+                // Native HLS support (Safari)
+                videoPlayer.src = playUrl;
+                videoPlayer.play();
+                showStatus(`Playing HLS (native): ${source.provider} - ${source.resolution}`, 'success');
+            } else {
+                // Regular MP4 or other formats (use proxy)
+                videoPlayer.src = playUrl;
+                videoPlayer.play();
+                showStatus(`Playing: ${source.provider} - ${source.resolution}`, 'success');
+            }
             
             // Scroll to player
             document.getElementById('playerSection').scrollIntoView({ behavior: 'smooth' });
-            
-            showStatus(`Playing: ${source.provider} - ${source.resolution}`, 'success');
         }
         
         function closePlayer() {
             const videoPlayer = document.getElementById('videoPlayer');
             videoPlayer.pause();
             videoPlayer.src = '';
+            
+            // Destroy HLS instance
+            if (hls) {
+                hls.destroy();
+                hls = null;
+            }
+            
             document.getElementById('playerSection').style.display = 'none';
             
             // Remove selection

@@ -25,8 +25,20 @@ export const videoProxyRoute = new Elysia({ prefix: '/api' })
       return { error: 'Missing url parameter' };
     }
 
-    // Security: Only allow Google Video domains
-    if (!videoUrl.includes('googlevideo.com')) {
+    // Security: Only allow trusted video domains
+    const allowedDomains = [
+      'googlevideo.com',
+      'dramiyos-cdn.com',
+      'technologyportal.site',
+      'callistanise.com',
+      'vidhidepro.com',
+      'vidhidefast.com',
+      'tiktokcdn.com' // HLS segments from VidHidePro
+    ];
+    
+    const isAllowed = allowedDomains.some(domain => videoUrl.includes(domain));
+    
+    if (!isAllowed) {
       set.status = 403;
       return { error: 'Invalid video URL domain' };
     }
@@ -39,6 +51,7 @@ export const videoProxyRoute = new Elysia({ prefix: '/api' })
 
       // Critical: Google Video rejects known User-Agent headers
       // Solution: Don't send User-Agent at all (raw request works!)
+      // HLS streams: Need Referer header for some CDNs
       const headers: Record<string, string> = {
         Accept: '*/*'
       };
@@ -46,10 +59,16 @@ export const videoProxyRoute = new Elysia({ prefix: '/api' })
       if (rangeHeader !== null) {
         headers.Range = rangeHeader;
       }
+      
+      // Add Referer for VidHidePro/Callistanise domains
+      if (videoUrl.includes('dramiyos-cdn.com') || videoUrl.includes('technologyportal.site') || videoUrl.includes('callistanise.com')) {
+        headers.Referer = 'https://callistanise.com/';
+      }
 
-      // Fetch video from Google Video (server IP matches URL parameter)
+      // Fetch video from source (follow redirects automatically)
       const response = await fetch(videoUrl, {
         headers,
+        redirect: 'follow', // Follow 301/302 redirects
         signal: AbortSignal.timeout(30000) // 30-second timeout
       });
 
@@ -65,7 +84,9 @@ export const videoProxyRoute = new Elysia({ prefix: '/api' })
       }
 
       // Set response headers for video streaming
-      const contentType = response.headers.get('Content-Type') ?? 'video/mp4';
+      // Auto-detect content type (MP4, HLS m3u8, etc.)
+      const contentType = response.headers.get('Content-Type') ?? 
+        (videoUrl.includes('.m3u8') ? 'application/vnd.apple.mpegurl' : 'video/mp4');
       const contentLength = response.headers.get('Content-Length');
       const acceptRanges = response.headers.get('Accept-Ranges') ?? 'bytes';
       const contentRange = response.headers.get('Content-Range');
@@ -88,6 +109,39 @@ export const videoProxyRoute = new Elysia({ prefix: '/api' })
         content_length: contentLength ?? 'chunked',
         status: response.status
       });
+
+      // Special handling for HLS playlists - convert relative URLs to absolute
+      if (contentType.includes('mpegurl') || videoUrl.includes('.m3u8')) {
+        const text = await response.text();
+        const baseUrl = new URL(videoUrl);
+        const basePath = baseUrl.origin + baseUrl.pathname.substring(0, baseUrl.pathname.lastIndexOf('/') + 1);
+        
+        // Replace relative URLs in playlist with absolute URLs
+        const modifiedPlaylist = text.split('\n').map(line => {
+          // Skip comments and empty lines
+          if (line.startsWith('#') || line.trim() === '') {
+            return line;
+          }
+          
+          // If line is a relative URL (not starting with http), make it absolute
+          if (!line.startsWith('http') && !line.startsWith('#')) {
+            return basePath + line.trim();
+          }
+          
+          return line;
+        }).join('\n');
+        
+        logger.debug('HLS playlist modified', { original_lines: text.split('\n').length, base_path: basePath });
+        
+        return new Response(modifiedPlaylist, {
+          status: response.status,
+          headers: {
+            'Content-Type': contentType,
+            'Access-Control-Allow-Origin': '*',
+            'Cache-Control': 'public, max-age=3600'
+          }
+        });
+      }
 
       // Return raw Response object to preserve binary stream
       return new Response(response.body, {
