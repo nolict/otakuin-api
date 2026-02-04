@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.2.0](https://github.com/nolict/otakuin-api/compare/otakuin-v0.1.0...otakuin-v0.2.0) (2026-02-04)
+
+
+### Features
+
+* **streaming:** add source sorting by provider, resolution, and server ([99ba3f1](https://github.com/nolict/otakuin-api/commit/99ba3f1c629a19a0f72a2a2c0630393f8f30c51a))
+* **streaming:** add VidHidePro extractor with HLS m3u8 proxy and URL rewriting ([80dc700](https://github.com/nolict/otakuin-api/commit/80dc70064452f9ab0bbcfdc84444e22c3ccb9b3d))
+* **streaming:** add Wibufile extractor and video short code system ([aac25a7](https://github.com/nolict/otakuin-api/commit/aac25a71a2ce829ed7e915a109b40f71554e2781))
+* **video:** add BerkasDrive extractor with Cloudflare CDN support and streaming headers enhancement ([a7cf2f8](https://github.com/nolict/otakuin-api/commit/a7cf2f857a976af78b06ee39bb7612d4f77f9b23))
+* **video:** add WibuFile and Filedon extractors with streaming headers fix for inline playback ([5efcc4c](https://github.com/nolict/otakuin-api/commit/5efcc4c6f8f53c56e83497b0d336e71da82ccc70))
+
 ## [0.1.0](https://github.com/nolict/otakuin-api/compare/otakuin-v0.0.1...otakuin-v0.1.0) (2026-02-02)
 
 
