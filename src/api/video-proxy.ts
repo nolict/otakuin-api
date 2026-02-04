@@ -35,7 +35,9 @@ export const videoProxyRoute = new Elysia({ prefix: '/api' })
       'vidhidefast.com',
       'tiktokcdn.com', // HLS segments from VidHidePro
       'wibufile.com', // Wibufile direct video URLs
-      'cloudflarestorage.com' // Filedon R2 storage
+      'cloudflarestorage.com', // Filedon R2 storage
+      'berkasdrive.com', // BerkasDrive CDN
+      'miterequest.my.id' // BerkasDrive alternative server
     ];
 
     const isAllowed = allowedDomains.some(domain => videoUrl.includes(domain));

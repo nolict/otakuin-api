@@ -1,5 +1,6 @@
 import { generateVideoCode } from '../../utils/code-generator';
 import { createTimer, logger } from '../../utils/logger';
+import { extractBerkasDriveVideoUrl, isBerkasDriveUrl } from '../extractors/berkasdrive-video.extractor';
 import { extractBloggerVideoUrl, isBloggerUrl } from '../extractors/blogger-video.extractor';
 import { extractFiledonVideoUrl, isFiledonUrl } from '../extractors/filedon-video.extractor';
 import { extractVidHideProVideoUrl } from '../extractors/vidhidepro-video.extractor';
@@ -147,6 +148,12 @@ async function enrichWithVideoUrls(sources: StreamingLink[]): Promise<void> {
     } else if (isFiledonUrl(source.url)) {
       const timer = logger.createTimer();
       const videoUrl = await extractFiledonVideoUrl(source.url);
+      source.url_video = videoUrl;
+      const duration = timer.split();
+      logger.perf(duration, { provider: source.provider, has_video: videoUrl !== null && videoUrl !== '' });
+    } else if (isBerkasDriveUrl(source.url)) {
+      const timer = logger.createTimer();
+      const videoUrl = await extractBerkasDriveVideoUrl(source.url);
       source.url_video = videoUrl;
       const duration = timer.split();
       logger.perf(duration, { provider: source.provider, has_video: videoUrl !== null && videoUrl !== '' });

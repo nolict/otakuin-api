@@ -1,5 +1,6 @@
 import { Elysia } from 'elysia';
 
+import { extractBerkasDriveVideoUrl, isBerkasDriveUrl } from '../services/extractors/berkasdrive-video.extractor';
 import { extractBloggerVideoUrl, isBloggerUrl } from '../services/extractors/blogger-video.extractor';
 import { extractFiledonVideoUrl, isFiledonUrl } from '../services/extractors/filedon-video.extractor';
 import { extractVidHideProVideoUrl } from '../services/extractors/vidhidepro-video.extractor';
@@ -48,6 +49,8 @@ export const videoRoute = new Elysia({ prefix: '/api' })
         videoUrl = await extractWibufileVideo(source);
       } else if (isFiledonUrl(source.url)) {
         videoUrl = await extractFiledonVideoUrl(source.url);
+      } else if (isBerkasDriveUrl(source.url)) {
+        videoUrl = await extractBerkasDriveVideoUrl(source.url);
       }
 
       if (videoUrl === null || videoUrl === '') {
