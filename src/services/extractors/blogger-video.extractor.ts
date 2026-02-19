@@ -1,5 +1,6 @@
 import { fetchHTML } from '../../utils/dom-parser';
 import { logger } from '../../utils/logger';
+import { getCachedVideoUrl, saveVideoUrlCache } from '../repositories/video-url-cache.repository';
 
 interface BloggerVideoConfig {
   thumbnail: string;
@@ -15,6 +16,13 @@ export async function extractBloggerVideoUrl(bloggerUrl: string): Promise<string
   const timer = logger.createTimer();
 
   try {
+    // Check cache first
+    const cachedUrl = await getCachedVideoUrl(bloggerUrl, 'blogger');
+    if (cachedUrl !== null) {
+      logger.perf('Blogger cache HIT', timer.split());
+      return cachedUrl;
+    }
+
     logger.debug('Extracting video from Blogger URL', { url: bloggerUrl });
 
     const html = await fetchHTML(bloggerUrl);
@@ -40,6 +48,9 @@ export async function extractBloggerVideoUrl(bloggerUrl: string): Promise<string
       has_video: videoUrl !== undefined && videoUrl !== '',
       url_length: videoUrl?.length ?? 0
     });
+
+    // Save to cache
+    await saveVideoUrlCache(bloggerUrl, 'blogger', videoUrl);
 
     return videoUrl;
   } catch (error) {

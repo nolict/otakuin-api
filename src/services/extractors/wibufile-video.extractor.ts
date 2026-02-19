@@ -1,4 +1,5 @@
 import { logger } from '../../utils/logger';
+import { getCachedVideoUrl, saveVideoUrlCache } from '../repositories/video-url-cache.repository';
 
 import type { StreamingLink } from '../../types/streaming';
 
@@ -25,6 +26,13 @@ export async function extractWibufileVideo(link: StreamingLink): Promise<string 
     // Handle embed URLs that need API extraction
     if (!link.url.includes('api.wibufile.com/embed/')) {
       return null;
+    }
+
+    // Check cache first
+    const cachedUrl = await getCachedVideoUrl(link.url, 'wibufile');
+    if (cachedUrl !== null) {
+      logger.perf('WibuFile cache HIT', timer.split());
+      return cachedUrl;
     }
 
     logger.debug('Extracting Wibufile video URL from embed', { url: link.url });
@@ -83,6 +91,9 @@ export async function extractWibufileVideo(link: StreamingLink): Promise<string 
       videoUrl: `${videoUrl.substring(0, 50)  }...`,
       label: data.sources[0].label
     });
+
+    // Save to cache
+    await saveVideoUrlCache(link.url, 'wibufile', videoUrl);
 
     return videoUrl;
 

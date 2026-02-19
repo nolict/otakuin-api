@@ -1,10 +1,18 @@
 import { fetchHTML } from '../../utils/dom-parser';
 import { logger } from '../../utils/logger';
+import { getCachedVideoUrl, saveVideoUrlCache } from '../repositories/video-url-cache.repository';
 
 export async function extractBerkasDriveVideoUrl(embedUrl: string): Promise<string | null> {
   const timer = logger.createTimer();
 
   try {
+    // Check cache first
+    const cachedUrl = await getCachedVideoUrl(embedUrl, 'berkasdrive');
+    if (cachedUrl !== null) {
+      logger.perf('BerkasDrive cache HIT', timer.split());
+      return cachedUrl;
+    }
+
     logger.debug('Extracting BerkasDrive video URL', { url: embedUrl });
 
     const html = await fetchHTML(embedUrl);
@@ -25,6 +33,9 @@ export async function extractBerkasDriveVideoUrl(embedUrl: string): Promise<stri
       url_length: videoUrl.length,
       is_cdn: videoUrl.includes('cdn-cf.berkasdrive.com')
     });
+
+    // Save to cache
+    await saveVideoUrlCache(embedUrl, 'berkasdrive', videoUrl);
 
     return videoUrl;
   } catch (error) {

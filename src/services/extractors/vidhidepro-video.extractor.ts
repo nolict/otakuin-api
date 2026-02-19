@@ -1,5 +1,6 @@
 import { fetchHTML } from '../../utils/dom-parser';
 import { logger } from '../../utils/logger';
+import { getCachedVideoUrl, saveVideoUrlCache } from '../repositories/video-url-cache.repository';
 
 interface VidHideProVideoUrls {
   hls2?: string;
@@ -11,6 +12,13 @@ export async function extractVidHideProVideoUrl(embedUrl: string): Promise<strin
   const timer = logger.createTimer();
 
   try {
+    // Check cache first
+    const cachedUrl = await getCachedVideoUrl(embedUrl, 'vidhidepro');
+    if (cachedUrl !== null) {
+      logger.perf('VidHidePro cache HIT', timer.split());
+      return cachedUrl;
+    }
+
     logger.debug('Extracting VidHidePro video URL', { embedUrl });
 
     const html = await fetchHTML(embedUrl);
@@ -27,6 +35,9 @@ export async function extractVidHideProVideoUrl(embedUrl: string): Promise<strin
     if (finalUrl !== null && finalUrl !== '') {
       logger.perf('VidHidePro extraction completed', timer.split());
       logger.debug('Extracted video URL', { url: finalUrl });
+
+      // Save to cache
+      await saveVideoUrlCache(embedUrl, 'vidhidepro', finalUrl);
     }
 
     return finalUrl;

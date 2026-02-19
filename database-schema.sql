@@ -137,13 +137,40 @@ COMMENT ON COLUMN video_code_cache.source_data IS 'Full StreamingLink object wit
 COMMENT ON COLUMN video_code_cache.expires_at IS 'Cache expiration timestamp (24 hours from creation)';
 
 
--- Update cleanup function to include video_code_cache
+-- Table 5: Video URL Cache (Temporary Storage - 6 hours TTL)
+-- Purpose: Cache extracted video URLs from all providers to reduce extraction overhead
+CREATE TABLE IF NOT EXISTS video_url_cache (
+  id BIGSERIAL PRIMARY KEY,
+  embed_url TEXT NOT NULL,
+  provider VARCHAR(50) NOT NULL,
+  video_url TEXT NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(embed_url, provider)
+);
+
+-- Index for fast lookup by embed URL and provider
+CREATE INDEX IF NOT EXISTS idx_video_url_cache_embed_provider ON video_url_cache(embed_url, provider);
+
+-- Index for automatic cleanup of expired entries
+CREATE INDEX IF NOT EXISTS idx_video_url_cache_expires_at ON video_url_cache(expires_at);
+
+-- Comments for documentation
+COMMENT ON TABLE video_url_cache IS 'Temporary cache for extracted video URLs with 6 hour TTL';
+COMMENT ON COLUMN video_url_cache.embed_url IS 'Original embed URL from streaming source';
+COMMENT ON COLUMN video_url_cache.provider IS 'Video provider (blogger, vidhidepro, wibufile, filedon, berkasdrive)';
+COMMENT ON COLUMN video_url_cache.video_url IS 'Extracted direct video URL';
+COMMENT ON COLUMN video_url_cache.expires_at IS 'Cache expiration timestamp (6 hours from creation)';
+
+
+-- Update cleanup function to include video_code_cache and video_url_cache
 CREATE OR REPLACE FUNCTION cleanup_expired_cache()
 RETURNS INTEGER AS $$
 DECLARE
   deleted_anime INTEGER;
   deleted_streaming INTEGER;
   deleted_video_code INTEGER;
+  deleted_video_url INTEGER;
   total_deleted INTEGER;
 BEGIN
   DELETE FROM anime_cache WHERE expires_at < NOW();
@@ -155,7 +182,10 @@ BEGIN
   DELETE FROM video_code_cache WHERE expires_at < NOW();
   GET DIAGNOSTICS deleted_video_code = ROW_COUNT;
   
-  total_deleted := deleted_anime + deleted_streaming + deleted_video_code;
+  DELETE FROM video_url_cache WHERE expires_at < NOW();
+  GET DIAGNOSTICS deleted_video_url = ROW_COUNT;
+  
+  total_deleted := deleted_anime + deleted_streaming + deleted_video_code + deleted_video_url;
   RETURN total_deleted;
 END;
 $$ LANGUAGE plpgsql;

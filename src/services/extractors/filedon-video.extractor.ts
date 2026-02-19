@@ -1,5 +1,6 @@
 import { fetchHTML } from '../../utils/dom-parser';
 import { logger } from '../../utils/logger';
+import { getCachedVideoUrl, saveVideoUrlCache } from '../repositories/video-url-cache.repository';
 
 interface FiledonPageData {
   component: string;
@@ -18,6 +19,13 @@ export async function extractFiledonVideoUrl(embedUrl: string): Promise<string |
   const timer = logger.createTimer();
 
   try {
+    // Check cache first
+    const cachedUrl = await getCachedVideoUrl(embedUrl, 'filedon');
+    if (cachedUrl !== null) {
+      logger.perf('Filedon cache HIT', timer.split());
+      return cachedUrl;
+    }
+
     logger.debug('Extracting Filedon video URL', { url: embedUrl });
 
     const html = await fetchHTML(embedUrl);
@@ -52,6 +60,9 @@ export async function extractFiledonVideoUrl(embedUrl: string): Promise<string |
       url_length: videoUrl.length,
       file_name: pageData.props.files?.name ?? 'unknown'
     });
+
+    // Save to cache
+    await saveVideoUrlCache(embedUrl, 'filedon', videoUrl);
 
     return videoUrl;
   } catch (error) {
