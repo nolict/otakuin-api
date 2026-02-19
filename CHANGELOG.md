@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.2.0](https://github.com/nolict/otakuin-api/compare/otakuin-v0.1.0...otakuin-v0.2.0) (2026-02-19)
+
+
+### Features
+
+* **cache:** add caxhe for resolve url ([6dd7ea7](https://github.com/nolict/otakuin-api/commit/6dd7ea707b0a17a28d29869655af7f06265837c9))
+* **streaming:** add source sorting by provider, resolution, and server ([99ba3f1](https://github.com/nolict/otakuin-api/commit/99ba3f1c629a19a0f72a2a2c0630393f8f30c51a))
+* **streaming:** add VidHidePro extractor with HLS m3u8 proxy and URL rewriting ([80dc700](https://github.com/nolict/otakuin-api/commit/80dc70064452f9ab0bbcfdc84444e22c3ccb9b3d))
+* **streaming:** add Wibufile extractor and video short code system ([aac25a7](https://github.com/nolict/otakuin-api/commit/aac25a71a2ce829ed7e915a109b40f71554e2781))
+* **video:** add BerkasDrive extractor with Cloudflare CDN support and streaming headers enhancement ([a7cf2f8](https://github.com/nolict/otakuin-api/commit/a7cf2f857a976af78b06ee39bb7612d4f77f9b23))
+* **video:** add MP4Upload provider with SSL bypass and Referer header support ([71a800f](https://github.com/nolict/otakuin-api/commit/71a800fd4ab0fe12b42406e0956b9c0c9b86476f))
+* **video:** add WibuFile and Filedon extractors with streaming headers fix for inline playback ([5efcc4c](https://github.com/nolict/otakuin-api/commit/5efcc4c6f8f53c56e83497b0d336e71da82ccc70))
+
+
+### Refactors
+
+* **providers:** remove Blogger and VidHidePro video providers ([02b8bb4](https://github.com/nolict/otakuin-api/commit/02b8bb4afb07a29dece11b7872195e51423c7e3b))
+
 ## [0.1.0](https://github.com/nolict/otakuin-api/compare/otakuin-v0.0.1...otakuin-v0.1.0) (2026-02-02)
 
 
