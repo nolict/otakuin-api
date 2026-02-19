@@ -3,6 +3,7 @@ import { Elysia } from 'elysia';
 import { extractBerkasDriveVideoUrl, isBerkasDriveUrl } from '../services/extractors/berkasdrive-video.extractor';
 import { extractBloggerVideoUrl, isBloggerUrl } from '../services/extractors/blogger-video.extractor';
 import { extractFiledonVideoUrl, isFiledonUrl } from '../services/extractors/filedon-video.extractor';
+import { extractMp4uploadVideoUrl, isMp4uploadUrl } from '../services/extractors/mp4upload-video.extractor';
 import { extractVidHideProVideoUrl } from '../services/extractors/vidhidepro-video.extractor';
 import { extractWibufileVideo, isWibufileUrl } from '../services/extractors/wibufile-video.extractor';
 import { getVideoSourceByCode } from '../services/repositories/video-code-cache.repository';
@@ -51,6 +52,8 @@ export const videoRoute = new Elysia({ prefix: '/api' })
         videoUrl = await extractFiledonVideoUrl(source.url);
       } else if (isBerkasDriveUrl(source.url)) {
         videoUrl = await extractBerkasDriveVideoUrl(source.url);
+      } else if (isMp4uploadUrl(source.url)) {
+        videoUrl = await extractMp4uploadVideoUrl(source.url);
       }
 
       if (videoUrl === null || videoUrl === '') {
@@ -76,11 +79,22 @@ export const videoRoute = new Elysia({ prefix: '/api' })
         headers.Referer = 'https://callistanise.com/';
       }
 
-      const response = await fetch(videoUrl, {
+      if (videoUrl.includes('mp4upload.com')) {
+        headers.Referer = 'https://www.mp4upload.com/';
+      }
+
+      const fetchOptions: RequestInit = {
         headers,
         redirect: 'follow',
         signal: AbortSignal.timeout(30000)
-      });
+      };
+
+      if (videoUrl.includes('mp4upload.com')) {
+        // @ts-expect-error - Bun-specific option to ignore SSL certificate errors
+        fetchOptions.tls = { rejectUnauthorized: false };
+      }
+
+      const response = await fetch(videoUrl, fetchOptions);
 
       if (!response.ok) {
         logger.warn('Video fetch failed', { status: response.status });
