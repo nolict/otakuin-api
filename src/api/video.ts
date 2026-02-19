@@ -1,10 +1,8 @@
 import { Elysia } from 'elysia';
 
 import { extractBerkasDriveVideoUrl, isBerkasDriveUrl } from '../services/extractors/berkasdrive-video.extractor';
-import { extractBloggerVideoUrl, isBloggerUrl } from '../services/extractors/blogger-video.extractor';
 import { extractFiledonVideoUrl, isFiledonUrl } from '../services/extractors/filedon-video.extractor';
 import { extractMp4uploadVideoUrl, isMp4uploadUrl } from '../services/extractors/mp4upload-video.extractor';
-import { extractVidHideProVideoUrl } from '../services/extractors/vidhidepro-video.extractor';
 import { extractWibufileVideo, isWibufileUrl } from '../services/extractors/wibufile-video.extractor';
 import { getVideoSourceByCode } from '../services/repositories/video-code-cache.repository';
 import { logger } from '../utils/logger';
@@ -42,11 +40,7 @@ export const videoRoute = new Elysia({ prefix: '/api' })
     if (videoUrl === null || videoUrl === '') {
       logger.debug('url_video not available, attempting extraction');
 
-      if (isBloggerUrl(source.url)) {
-        videoUrl = await extractBloggerVideoUrl(source.url);
-      } else if (isVidHideProUrl(source.url)) {
-        videoUrl = await extractVidHideProVideoUrl(source.url);
-      } else if (isWibufileUrl(source.url)) {
+      if (isWibufileUrl(source.url)) {
         videoUrl = await extractWibufileVideo(source);
       } else if (isFiledonUrl(source.url)) {
         videoUrl = await extractFiledonVideoUrl(source.url);
@@ -73,10 +67,6 @@ export const videoRoute = new Elysia({ prefix: '/api' })
 
       if (rangeHeader !== null) {
         headers.Range = rangeHeader;
-      }
-
-      if (videoUrl.includes('dramiyos-cdn.com') || videoUrl.includes('technologyportal.site') || videoUrl.includes('callistanise.com')) {
-        headers.Referer = 'https://callistanise.com/';
       }
 
       if (videoUrl.includes('mp4upload.com')) {
@@ -185,7 +175,3 @@ export const videoRoute = new Elysia({ prefix: '/api' })
       return { error: 'Failed to stream video' };
     }
   });
-
-function isVidHideProUrl(url: string): boolean {
-  return url.includes('vidhidepro.com') || url.includes('callistanise.com');
-}

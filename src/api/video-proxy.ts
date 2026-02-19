@@ -27,17 +27,11 @@ export const videoProxyRoute = new Elysia({ prefix: '/api' })
 
     // Security: Only allow trusted video domains
     const allowedDomains = [
-      'googlevideo.com',
-      'dramiyos-cdn.com',
-      'technologyportal.site',
-      'callistanise.com',
-      'vidhidepro.com',
-      'vidhidefast.com',
-      'tiktokcdn.com', // HLS segments from VidHidePro
       'wibufile.com', // Wibufile direct video URLs
       'cloudflarestorage.com', // Filedon R2 storage
       'berkasdrive.com', // BerkasDrive CDN
-      'miterequest.my.id' // BerkasDrive alternative server
+      'miterequest.my.id', // BerkasDrive alternative server
+      'mp4upload.com' // MP4Upload video URLs
     ];
 
     const isAllowed = allowedDomains.some(domain => videoUrl.includes(domain));
@@ -53,9 +47,6 @@ export const videoProxyRoute = new Elysia({ prefix: '/api' })
       // Forward Range header for seeking support
       const rangeHeader = request.headers.get('range');
 
-      // Critical: Google Video rejects known User-Agent headers
-      // Solution: Don't send User-Agent at all (raw request works!)
-      // HLS streams: Need Referer header for some CDNs
       const headers: Record<string, string> = {
         Accept: '*/*'
       };
@@ -64,9 +55,9 @@ export const videoProxyRoute = new Elysia({ prefix: '/api' })
         headers.Range = rangeHeader;
       }
 
-      // Add Referer for VidHidePro/Callistanise domains
-      if (videoUrl.includes('dramiyos-cdn.com') || videoUrl.includes('technologyportal.site') || videoUrl.includes('callistanise.com')) {
-        headers.Referer = 'https://callistanise.com/';
+      // Add Referer for MP4Upload
+      if (videoUrl.includes('mp4upload.com')) {
+        headers.Referer = 'https://www.mp4upload.com/';
       }
 
       // Fetch video from source (follow redirects automatically)

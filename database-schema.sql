@@ -158,7 +158,7 @@ CREATE INDEX IF NOT EXISTS idx_video_url_cache_expires_at ON video_url_cache(exp
 -- Comments for documentation
 COMMENT ON TABLE video_url_cache IS 'Temporary cache for extracted video URLs with 6 hour TTL';
 COMMENT ON COLUMN video_url_cache.embed_url IS 'Original embed URL from streaming source';
-COMMENT ON COLUMN video_url_cache.provider IS 'Video provider (blogger, vidhidepro, wibufile, filedon, berkasdrive)';
+COMMENT ON COLUMN video_url_cache.provider IS 'Video provider (wibufile, filedon, berkasdrive, mp4upload)';
 COMMENT ON COLUMN video_url_cache.video_url IS 'Extracted direct video URL';
 COMMENT ON COLUMN video_url_cache.expires_at IS 'Cache expiration timestamp (6 hours from creation)';
 
@@ -202,3 +202,45 @@ $$ LANGUAGE plpgsql;
 -- CREATE POLICY "Allow read access to all users" ON anime_cache FOR SELECT USING (true);
 -- CREATE POLICY "Allow read access to all users" ON streaming_cache FOR SELECT USING (true);
 -- CREATE POLICY "Allow read access to all users" ON video_code_cache FOR SELECT USING (true);
+
+
+-- ============================================
+-- CLEANUP: Remove Blogger & VidHidePro Data
+-- Phase 2.13 - One-time cleanup (Optional)
+-- ============================================
+
+-- Clean up video_url_cache entries for removed providers
+-- DELETE FROM video_url_cache
+-- WHERE provider IN ('blogger', 'vidhidepro')
+--    OR embed_url LIKE '%blogger.com%'
+--    OR embed_url LIKE '%vidhidepro.com%'
+--    OR embed_url LIKE '%vidhidefast.com%'
+--    OR embed_url LIKE '%callistanise.com%';
+
+-- Clean up streaming_cache entries containing removed providers
+-- UPDATE streaming_cache
+-- SET sources = (
+--   SELECT jsonb_agg(source)
+--   FROM jsonb_array_elements(sources) AS source
+--   WHERE NOT (
+--     source->>'url' LIKE '%blogger.com%' OR
+--     source->>'url' LIKE '%vidhidepro.com%' OR
+--     source->>'url' LIKE '%vidhidefast.com%' OR
+--     source->>'url' LIKE '%callistanise.com%'
+--   )
+-- )
+-- WHERE sources::text LIKE '%blogger.com%'
+--    OR sources::text LIKE '%vidhidepro.com%'
+--    OR sources::text LIKE '%vidhidefast.com%'
+--    OR sources::text LIKE '%callistanise.com%';
+
+-- Clean up video_code_cache entries for removed providers
+-- DELETE FROM video_code_cache
+-- WHERE source_data->>'url' LIKE '%blogger.com%'
+--    OR source_data->>'url' LIKE '%vidhidepro.com%'
+--    OR source_data->>'url' LIKE '%vidhidefast.com%'
+--    OR source_data->>'url' LIKE '%callistanise.com%';
+
+-- Note: Cleanup queries are commented out because the API now filters
+-- removed providers automatically. Run these queries only if you want
+-- to permanently remove old data from the database.

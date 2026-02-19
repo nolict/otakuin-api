@@ -1,10 +1,8 @@
 import { generateVideoCode } from '../../utils/code-generator';
 import { createTimer, logger } from '../../utils/logger';
 import { extractBerkasDriveVideoUrl, isBerkasDriveUrl } from '../extractors/berkasdrive-video.extractor';
-import { extractBloggerVideoUrl, isBloggerUrl } from '../extractors/blogger-video.extractor';
 import { extractFiledonVideoUrl, isFiledonUrl } from '../extractors/filedon-video.extractor';
 import { extractMp4uploadVideoUrl, isMp4uploadUrl } from '../extractors/mp4upload-video.extractor';
-import { extractVidHideProVideoUrl } from '../extractors/vidhidepro-video.extractor';
 import { extractWibufileVideo, isWibufileUrl } from '../extractors/wibufile-video.extractor';
 import { getSlugMapping } from '../repositories/slug-mapping.repository';
 import { getStreamingCache, saveStreamingCache } from '../repositories/streaming-cache.repository';
@@ -25,7 +23,17 @@ export async function getStreamingLinks(malId: number, episode: number): Promise
   if (cachedData !== null) {
     logger.info(`Streaming cache HIT for MAL ${malId} Episode ${episode}`);
     logger.perf(`Request completed in ${timer.elapsed()}`, { cached: true });
-    const normalizedSources = cachedData.sources.map(normalizeSourceFieldOrder);
+
+    // Filter out removed providers (Blogger, VidHidePro)
+    const filteredSources = cachedData.sources.filter(source => {
+      const isRemovedProvider = source.url.includes('blogger.com') ||
+                                source.url.includes('vidhidepro.com') ||
+                                source.url.includes('vidhidefast.com') ||
+                                source.url.includes('callistanise.com');
+      return !isRemovedProvider;
+    });
+
+    const normalizedSources = filteredSources.map(normalizeSourceFieldOrder);
     const sortedSources = sortSources(normalizedSources);
     return {
       mal_id: malId,
@@ -83,27 +91,41 @@ export async function getStreamingLinks(malId: number, episode: number): Promise
 
   await Promise.all(scrapePromises);
 
-  await enrichWithVideoUrls(allSources);
+  // Filter out removed providers (Blogger, VidHidePro) from fresh scrapes
+  const filteredSources = allSources.filter(source => {
+    const isRemovedProvider = source.url.includes('blogger.com') ||
+                              source.url.includes('vidhidepro.com') ||
+                              source.url.includes('vidhidefast.com') ||
+                              source.url.includes('callistanise.com');
 
-  await generateAndSaveVideoCodes(allSources);
+    if (isRemovedProvider) {
+      logger.debug('Filtered out removed provider', { url: source.url, provider: source.provider });
+    }
 
-  if (allSources.length > 0) {
+    return !isRemovedProvider;
+  });
+
+  await enrichWithVideoUrls(filteredSources);
+
+  await generateAndSaveVideoCodes(filteredSources);
+
+  if (filteredSources.length > 0) {
     await saveStreamingCache({
       mal_id: malId,
       episode,
-      sources: allSources,
+      sources: filteredSources,
       expires_at: new Date(Date.now() + 20 * 60 * 1000).toISOString()
     });
-    logger.debug('Streaming cache saved', { source_count: allSources.length });
+    logger.debug('Streaming cache saved', { source_count: filteredSources.length });
   }
 
   logger.perf(`Request completed in ${timer.elapsed()}`, {
     mal_id: malId,
     episode,
-    source_count: allSources.length
+    source_count: filteredSources.length
   });
 
-  const normalizedSources = allSources.map(normalizeSourceFieldOrder);
+  const normalizedSources = filteredSources.map(normalizeSourceFieldOrder);
   const sortedSources = sortSources(normalizedSources);
 
   return {
@@ -122,25 +144,9 @@ function buildAnimasuEpisodeUrl(slug: string, episode: number): string {
   return `${ANIMASU_BASE_URL}${formattedSlug}-episode-${episode}/`;
 }
 
-function isVidHideProUrl(url: string): boolean {
-  return url.includes('vidhidepro.com') || url.includes('callistanise.com');
-}
-
 async function enrichWithVideoUrls(sources: StreamingLink[]): Promise<void> {
   const extractionPromises = sources.map(async (source) => {
-    if (isBloggerUrl(source.url)) {
-      const timer = logger.createTimer();
-      const videoUrl = await extractBloggerVideoUrl(source.url);
-      source.url_video = videoUrl;
-      const duration = timer.split();
-      logger.perf(duration, { provider: source.provider, has_video: videoUrl !== null && videoUrl !== '' });
-    } else if (isVidHideProUrl(source.url)) {
-      const timer = logger.createTimer();
-      const videoUrl = await extractVidHideProVideoUrl(source.url);
-      source.url_video = videoUrl;
-      const duration = timer.split();
-      logger.perf(duration, { provider: source.provider, has_video: videoUrl !== null && videoUrl !== '' });
-    } else if (isWibufileUrl(source.url)) {
+    if (isWibufileUrl(source.url)) {
       const timer = logger.createTimer();
       const videoUrl = await extractWibufileVideo(source);
       source.url_video = videoUrl;
