@@ -44,7 +44,7 @@ export async function getStoredVideo(
   try {
     const supabase = getSupabaseClient();
 
-    const { data, error } = await supabase
+    const result = await supabase
       .from('video_storage')
       .select('*')
       .eq('mal_id', malId)
@@ -52,6 +52,8 @@ export async function getStoredVideo(
       .eq('resolution', resolution)
       .eq('server', server)
       .single();
+
+    const error = result.error as { code?: string; message: string } | null;
 
     if (error !== null) {
       if (error.code === 'PGRST116') {
@@ -61,7 +63,11 @@ export async function getStoredVideo(
       return null;
     }
 
-    return data as VideoStorageItem;
+    if (result.data === null) {
+      return null;
+    }
+
+    return result.data as VideoStorageItem;
   } catch (err) {
     logger.error(`Error getting stored video: ${err instanceof Error ? err.message : String(err)}`);
     return null;

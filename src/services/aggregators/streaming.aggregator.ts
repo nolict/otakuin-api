@@ -8,13 +8,34 @@ import { extractWibufileVideo, isWibufileUrl } from '../extractors/wibufile-vide
 import { getSlugMapping } from '../repositories/slug-mapping.repository';
 import { getStreamingCache, saveStreamingCache } from '../repositories/streaming-cache.repository';
 import { saveVideoCode } from '../repositories/video-code-cache.repository';
+import { getStoredVideosByEpisode } from '../repositories/video-storage.repository';
 import { scrapeAnimasuStreaming } from '../scrapers/animasu-streaming.scraper';
 import { scrapeSamehadakuStreaming } from '../scrapers/samehadaku-streaming.scraper';
 
-import type { StreamingLink, StreamingResponse } from '../../types/streaming';
+import type { SavedVideo, StreamingLink, StreamingResponse } from '../../types/streaming';
 
 const ANIMASU_BASE_URL = 'https://v0.animasu.app/nonton-';
 const SAMEHADAKU_BASE_URL = 'https://v1.samehadaku.how/';
+const WORKER_VIDEO_PROXY_URL = process.env.WORKER_VIDEO_PROXY_URL ?? '';
+const PRIMARY_STORAGE_ACCOUNT = process.env.PRIMARY_STORAGE_ACCOUNT ?? 'storage-account-1';
+
+function wrapWithWorkerProxy(videoUrl: string | null): string | null {
+  if (videoUrl === null || videoUrl === '') {
+    return null;
+  }
+
+  if (WORKER_VIDEO_PROXY_URL === '') {
+    logger.warn('WORKER_VIDEO_PROXY_URL not configured, returning original URL');
+    return videoUrl;
+  }
+
+  // Skip if already wrapped
+  if (videoUrl.startsWith(WORKER_VIDEO_PROXY_URL)) {
+    return videoUrl;
+  }
+
+  return `${WORKER_VIDEO_PROXY_URL}/?url=${encodeURIComponent(videoUrl)}`;
+}
 
 export async function getStreamingLinks(malId: number, episode: number): Promise<StreamingResponse> {
   const timer = createTimer();
@@ -34,14 +55,24 @@ export async function getStreamingLinks(malId: number, episode: number): Promise
       return !isRemovedProvider;
     });
 
+    await enrichWithGitHubStorage(malId, episode, filteredSources);
+
     const normalizedSources = filteredSources.map(normalizeSourceFieldOrder);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const sortedSources = sortSources(normalizedSources);
-    return {
+    
+    const savedVideos = await getSavedVideosSimplified(malId, episode);
+
+    const response: StreamingResponse = {
       mal_id: malId,
       episode,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       anime_title: cachedData.anime_title,
-      sources: sortedSources
+      sources: sortedSources,
+      saved_videos: savedVideos.length > 0 ? savedVideos : undefined
     };
+
+    return response;
   }
 
   logger.debug('Streaming cache MISS - Scraping from sources');
@@ -108,6 +139,7 @@ export async function getStreamingLinks(malId: number, episode: number): Promise
     return !isRemovedProvider;
   });
 
+  await enrichWithGitHubStorage(malId, episode, filteredSources);
   await enrichWithVideoUrls(filteredSources);
 
   await generateAndSaveVideoCodes(filteredSources);
@@ -132,12 +164,14 @@ export async function getStreamingLinks(malId: number, episode: number): Promise
   const sortedSources = sortSources(normalizedSources);
 
   const animeTitle = await getAnimeTitle(malId);
+  const savedVideos = await getSavedVideosSimplified(malId, episode);
 
   return {
     mal_id: malId,
     episode,
     anime_title: animeTitle,
-    sources: sortedSources
+    sources: sortedSources,
+    saved_videos: savedVideos.length > 0 ? savedVideos : undefined
   };
 }
 
@@ -151,9 +185,10 @@ async function getAnimeTitle(malId: number): Promise<string | undefined> {
       return undefined;
     }
 
-    const jsonData = await response.json() as { data?: { title?: string } };
+    const jsonData = (await response.json()) as { data?: { title?: string } };
     return jsonData.data?.title;
-  } catch {
+  } catch (err) {
+    logger.debug(`Failed to fetch anime title: ${err instanceof Error ? err.message : String(err)}`);
     return undefined;
   }
 }
@@ -167,10 +202,54 @@ function buildAnimasuEpisodeUrl(slug: string, episode: number): string {
   return `${ANIMASU_BASE_URL}${formattedSlug}-episode-${episode}/`;
 }
 
+async function enrichWithGitHubStorage(malId: number, episode: number, sources: StreamingLink[]): Promise<void> {
+  const storedVideos = await getStoredVideosByEpisode(malId, episode);
+
+  if (storedVideos.length === 0) {
+    logger.debug('No GitHub storage found for this episode', { mal_id: malId, episode });
+    return;
+  }
+
+  logger.info(`Found ${storedVideos.length} stored video(s) in GitHub storage`, { mal_id: malId, episode });
+
+  for (const source of sources) {
+    const serverNum = source.server !== undefined ? parseInt(source.server) : 1;
+    const matchedStorage = storedVideos.find(
+      v => v.resolution === source.resolution && v.server === serverNum
+    );
+
+    if (matchedStorage !== undefined) {
+      const primaryAccount = matchedStorage.github_urls.find(u => u.account === PRIMARY_STORAGE_ACCOUNT);
+      const fallbackUrl = matchedStorage.github_urls[0]?.url ?? null;
+      const githubUrl = primaryAccount?.url ?? fallbackUrl;
+
+      if (githubUrl !== null) {
+        source.url_video = githubUrl;
+        source.storage_type = 'github';
+
+        logger.info('Updated source with GitHub storage URL', {
+          resolution: source.resolution,
+          server: serverNum,
+          account: primaryAccount?.account ?? matchedStorage.github_urls[0]?.account,
+          file_name: matchedStorage.file_name
+        });
+      }
+    }
+  }
+}
+
 async function enrichWithVideoUrls(sources: StreamingLink[]): Promise<void> {
+  // Skip extraction for sources that already have GitHub storage
+  const sourcesNeedingExtraction = sources.filter(s => s.storage_type !== 'github');
+
+  if (sourcesNeedingExtraction.length === 0) {
+    logger.debug('All sources using GitHub storage, skipping video URL extraction');
+    return;
+  }
+
   // Mega.nz has rate limits, so prioritize highest resolution first
-  const megaSources = sources.filter(s => isMegaUrl(s.url));
-  const nonMegaSources = sources.filter(s => !isMegaUrl(s.url));
+  const megaSources = sourcesNeedingExtraction.filter(s => isMegaUrl(s.url));
+  const nonMegaSources = sourcesNeedingExtraction.filter(s => !isMegaUrl(s.url));
 
   // Sort Mega sources by resolution priority (1080p > 720p > 480p > 360p)
   const resolutionPriority: Record<string, number> = {
@@ -192,24 +271,28 @@ async function enrichWithVideoUrls(sources: StreamingLink[]): Promise<void> {
       const timer = logger.createTimer();
       const videoUrl = await extractWibufileVideo(source);
       source.url_video = videoUrl;
+      source.storage_type = 'cloudflare';
       const duration = timer.split();
       logger.perf(duration, { provider: source.provider, has_video: videoUrl !== null && videoUrl !== '' });
     } else if (isFiledonUrl(source.url)) {
       const timer = logger.createTimer();
       const videoUrl = await extractFiledonVideoUrl(source.url);
       source.url_video = videoUrl;
+      source.storage_type = 'cloudflare';
       const duration = timer.split();
       logger.perf(duration, { provider: source.provider, has_video: videoUrl !== null && videoUrl !== '' });
     } else if (isBerkasDriveUrl(source.url)) {
       const timer = logger.createTimer();
       const videoUrl = await extractBerkasDriveVideoUrl(source.url);
       source.url_video = videoUrl;
+      source.storage_type = 'cloudflare';
       const duration = timer.split();
       logger.perf(duration, { provider: source.provider, has_video: videoUrl !== null && videoUrl !== '' });
     } else if (isMp4uploadUrl(source.url)) {
       const timer = logger.createTimer();
       const videoUrl = await extractMp4uploadVideoUrl(source.url);
       source.url_video = videoUrl;
+      source.storage_type = 'cloudflare';
       const duration = timer.split();
       logger.perf(duration, { provider: source.provider, has_video: videoUrl !== null && videoUrl !== '' });
     }
@@ -221,6 +304,7 @@ async function enrichWithVideoUrls(sources: StreamingLink[]): Promise<void> {
     const timer = logger.createTimer();
     const videoUrl = await extractMegaVideoUrl(source.url);
     source.url_video = videoUrl;
+    source.storage_type = 'cloudflare';
     const duration = timer.split();
     logger.perf(duration, {
       provider: source.provider,
@@ -242,6 +326,27 @@ async function enrichWithVideoUrls(sources: StreamingLink[]): Promise<void> {
   await Promise.all(nonMegaPromises);
 }
 
+async function getSavedVideosSimplified(malId: number, episode: number): Promise<SavedVideo[]> {
+  const storedVideos = await getStoredVideosByEpisode(malId, episode);
+  
+  if (storedVideos.length === 0) {
+    return [];
+  }
+
+  return storedVideos.map(video => {
+    const primaryAccount = video.github_urls.find(u => u.account === PRIMARY_STORAGE_ACCOUNT);
+    const fallbackUrl = video.github_urls[0]?.url ?? '';
+    const rawUrl = primaryAccount?.url ?? fallbackUrl;
+
+    return {
+      file_name: video.file_name,
+      resolution: video.resolution,
+      file_size: video.file_size_bytes,
+      url: rawUrl
+    };
+  });
+}
+
 async function generateAndSaveVideoCodes(sources: StreamingLink[]): Promise<void> {
   const codePromises = sources.map(async (source) => {
     const code = generateVideoCode();
@@ -254,14 +359,28 @@ async function generateAndSaveVideoCodes(sources: StreamingLink[]): Promise<void
 }
 
 function normalizeSourceFieldOrder(source: StreamingLink): StreamingLink {
-  return {
+  const originalUrl = source.url ?? '';
+  const resolvedUrl = source.url_video ?? null;
+  
+  let cloudflareUrl: string | null = null;
+  if (resolvedUrl !== null && resolvedUrl !== '') {
+    if (resolvedUrl.startsWith(WORKER_VIDEO_PROXY_URL)) {
+      cloudflareUrl = resolvedUrl;
+    } else {
+      cloudflareUrl = wrapWithWorkerProxy(resolvedUrl);
+    }
+  }
+
+  const normalized: StreamingLink = {
     code: source.code,
     provider: source.provider,
-    url: source.url,
-    url_video: source.url_video,
     resolution: source.resolution,
-    server: source.server
+    url_video: originalUrl,
+    url_resolve: resolvedUrl,
+    url_cloudflare: cloudflareUrl
   };
+
+  return normalized;
 }
 
 function sortSources(sources: StreamingLink[]): StreamingLink[] {

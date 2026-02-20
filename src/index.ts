@@ -23,7 +23,7 @@ const app = new Elysia()
   .use(webhookRoutes)
   .get('/', () => ({
     message: 'Anime Scraper API',
-    version: '1.16.0',
+    version: '1.17.0',
     endpoints: {
       home: '/api/home',
       anime: '/api/anime/:id_mal',

@@ -9,7 +9,7 @@ export async function addToQueue(
   try {
     const supabase = getSupabaseClient();
 
-    const { data, error } = await supabase
+    const result = await supabase
       .from('video_queue')
       .insert({
         mal_id: item.mal_id,
@@ -28,19 +28,25 @@ export async function addToQueue(
       .select()
       .single();
 
+    const error = result.error as { code?: string; message: string } | null;
+
     if (error !== null) {
       if (error.code === '23505') {
-        logger.debug(`Queue item already exists: MAL ${item.mal_id} EP ${item.episode} ${item.resolution} Server ${item.server}`);
+        const msg = `Queue item already exists: MAL ${item.mal_id} EP ${item.episode} ${item.resolution} Server ${item.server}`;
+        logger.debug(msg);
         return null;
       }
       logger.error(`Failed to add to queue: ${error.message}`);
       return null;
     }
 
-    const queueItem = data as VideoQueueItem;
-    logger.info(
-      `Added to queue: MAL ${item.mal_id} EP ${item.episode} ${item.resolution} Server ${item.server}`
-    );
+    if (result.data === null) {
+      return null;
+    }
+
+    const queueItem = result.data as VideoQueueItem;
+    const msg = `Added to queue: MAL ${item.mal_id} EP ${item.episode} ${item.resolution} Server ${item.server}`;
+    logger.info(msg);
     return queueItem;
   } catch (err) {
     logger.error(`Error adding to queue: ${err instanceof Error ? err.message : String(err)}`);
@@ -48,7 +54,12 @@ export async function addToQueue(
   }
 }
 
-export async function checkVideoInQueue(malId: number, episode: number, resolution: string, server: number): Promise<boolean> {
+export async function checkVideoInQueue(
+  malId: number,
+  episode: number,
+  resolution: string,
+  server: number
+): Promise<boolean> {
   try {
     const supabase = getSupabaseClient();
 
