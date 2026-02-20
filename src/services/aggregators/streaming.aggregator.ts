@@ -2,6 +2,7 @@ import { generateVideoCode } from '../../utils/code-generator';
 import { createTimer, logger } from '../../utils/logger';
 import { extractBerkasDriveVideoUrl, isBerkasDriveUrl } from '../extractors/berkasdrive-video.extractor';
 import { extractFiledonVideoUrl, isFiledonUrl } from '../extractors/filedon-video.extractor';
+import { extractMegaVideoUrl, isMegaUrl } from '../extractors/mega-video.extractor';
 import { extractMp4uploadVideoUrl, isMp4uploadUrl } from '../extractors/mp4upload-video.extractor';
 import { extractWibufileVideo, isWibufileUrl } from '../extractors/wibufile-video.extractor';
 import { getSlugMapping } from '../repositories/slug-mapping.repository';
@@ -167,6 +168,12 @@ async function enrichWithVideoUrls(sources: StreamingLink[]): Promise<void> {
     } else if (isMp4uploadUrl(source.url)) {
       const timer = logger.createTimer();
       const videoUrl = await extractMp4uploadVideoUrl(source.url);
+      source.url_video = videoUrl;
+      const duration = timer.split();
+      logger.perf(duration, { provider: source.provider, has_video: videoUrl !== null && videoUrl !== '' });
+    } else if (isMegaUrl(source.url)) {
+      const timer = logger.createTimer();
+      const videoUrl = await extractMegaVideoUrl(source.url);
       source.url_video = videoUrl;
       const duration = timer.split();
       logger.perf(duration, { provider: source.provider, has_video: videoUrl !== null && videoUrl !== '' });
