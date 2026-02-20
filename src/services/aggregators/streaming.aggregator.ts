@@ -47,7 +47,7 @@ export async function getStreamingLinks(malId: number, episode: number): Promise
 
   const slugMapping = await getSlugMapping(malId);
   if (slugMapping === null) {
-    logger.warn(`No slug mapping found for MAL ID: ${malId}`);
+    logger.warn(`No slug mapping found for MAL ID: ${malId}. Please fetch /api/anime/${malId} first to discover slugs.`);
     return {
       mal_id: malId,
       episode,

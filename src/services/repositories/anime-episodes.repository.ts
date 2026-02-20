@@ -99,7 +99,7 @@ export async function batchGetSlugsByMalIds(malIds: number[]): Promise<Map<numbe
   }>();
 
   for (const row of data) {
-    resultMap.set(row.mal_id, {
+    resultMap.set(row.mal_id as number, {
       slugSamehadaku: row.samehadaku_slug as string | null,
       slugAnimasu: row.animasu_slug as string | null
     });

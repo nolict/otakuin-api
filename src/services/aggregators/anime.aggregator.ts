@@ -116,35 +116,6 @@ function generateSlugVariations(title: string, englishTitle: string | null): str
   return [...new Set(variations)].filter((v) => v.length > 0);
 }
 
-function findBestSlugMatch(
-  slugVariations: string[],
-  availableSlugs: string[]
-): Array<{ slug: string; similarity: number }> {
-  const matches: Array<{ slug: string; similarity: number }> = [];
-
-  for (const availableSlug of availableSlugs) {
-    let bestSimilarity = 0;
-
-    for (const variation of slugVariations) {
-      const similarity = compareTwoStrings(variation, availableSlug);
-      if (similarity > bestSimilarity) {
-        bestSimilarity = similarity;
-      }
-    }
-
-    if (bestSimilarity >= 0.70) {
-      matches.push({
-        slug: availableSlug,
-        similarity: bestSimilarity
-      });
-    }
-  }
-
-  matches.sort((a, b) => b.similarity - a.similarity);
-
-  return matches;
-}
-
 async function tryFindSlug(
   slugVariations: string[],
   scrapeFunction: (slug: string) => Promise<ScraperResult<AnimeDetailScraped>>,
@@ -175,8 +146,52 @@ async function tryFindSlug(
   const homeResult = await scrapeHomePage();
 
   if (homeResult.success && homeResult.data !== undefined) {
-    const availableSlugs = homeResult.data.map((anime) => anime.slug);
-    const fuzzyMatches = findBestSlugMatch(slugVariations, availableSlugs);
+    // Note: For Samehadaku, scrapeHomePage() already enriches titles with full Japanese names
+    // from detail pages, so we can use them directly for better matching
+    logger.debug(`Using ${homeResult.data.length} anime from home page (already enriched for Samehadaku)`);
+
+    // Generate slug variations from enriched titles for better matching
+    const enrichedSlugMap = new Map<string, string>();
+    for (const anime of homeResult.data) {
+      // Generate variations from enriched title
+      const enrichedVariations = generateSlugVariations(anime.animename, null);
+      for (const variation of enrichedVariations) {
+        if (!enrichedSlugMap.has(variation)) {
+          enrichedSlugMap.set(variation, anime.slug);
+        }
+      }
+      // Also keep original slug
+      enrichedSlugMap.set(anime.slug, anime.slug);
+    }
+
+    // Find best matches by comparing slug variations with enriched slug map
+    const matches: Array<{ slug: string; similarity: number }> = [];
+
+    for (const [enrichedVariation, originalSlug] of enrichedSlugMap) {
+      let bestSimilarity = 0;
+
+      for (const variation of slugVariations) {
+        const similarity = compareTwoStrings(variation, enrichedVariation);
+        if (similarity > bestSimilarity) {
+          bestSimilarity = similarity;
+        }
+      }
+
+      if (bestSimilarity >= 0.70) {
+        // Check if this slug already added with lower similarity
+        const existingIndex = matches.findIndex((m) => m.slug === originalSlug);
+        if (existingIndex >= 0) {
+          if (bestSimilarity > matches[existingIndex].similarity) {
+            matches[existingIndex].similarity = bestSimilarity;
+          }
+        } else {
+          matches.push({ slug: originalSlug, similarity: bestSimilarity });
+        }
+      }
+    }
+
+    matches.sort((a, b) => b.similarity - a.similarity);
+    const fuzzyMatches = matches;
 
     logger.debug('Fuzzy slug matches found', { count: fuzzyMatches.length });
 

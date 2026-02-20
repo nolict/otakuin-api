@@ -5,6 +5,11 @@ import type { AnimeItem, ScraperResult } from '../../types/anime';
 
 const SAMEHADAKU_HOME_URL = 'https://v1.samehadaku.how/anime-terbaru/';
 
+// In-memory cache for enriched home page results
+// Cache expires after 5 minutes to keep data fresh
+let cachedHomePageResult: { data: AnimeItem[]; timestamp: number } | null = null;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 function extractAnimeSlug(url: string): string {
   try {
     const urlObj = new URL(url);
@@ -21,28 +26,45 @@ async function extractFullTitleFromDetailPage(slug: string): Promise<string | nu
     const detailUrl = `https://v1.samehadaku.how/anime/${slug}/`;
     const html = await fetchHTML(detailUrl);
     const $ = parseDOM(html);
-    
+
     const paragraphs = $('.entry-content p');
-    
+
     if (paragraphs.length >= 2) {
       const p0 = $(paragraphs[0]).text().trim();
       const p1 = $(paragraphs[1]).text().trim();
-      
+
       if (p0 === 'Judul lengkap:' && p1.length > 0) {
-        logger.debug(`Extracted full title for ${slug}: ${p1}`);
         return p1;
       }
     }
-    
+
     return null;
-  } catch (error) {
-    logger.warn(`Failed to extract full title for ${slug}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  } catch {
+    // Silent fail - not all anime have full titles
     return null;
   }
 }
 
 export async function scrapeHomePage(): Promise<ScraperResult<AnimeItem[]>> {
   try {
+    // Check in-memory cache first
+    if (cachedHomePageResult !== null) {
+      const now = Date.now();
+      const age = now - cachedHomePageResult.timestamp;
+
+      if (age < CACHE_TTL_MS) {
+        const ageSeconds = Math.floor(age / 1000);
+        logger.debug(`Using cached home page (age: ${ageSeconds}s, ${cachedHomePageResult.data.length} anime)`);
+        return {
+          success: true,
+          data: cachedHomePageResult.data
+        };
+      } else {
+        logger.debug('Cache expired, fetching fresh home page data');
+        cachedHomePageResult = null;
+      }
+    }
+
     const html = await fetchHTML(SAMEHADAKU_HOME_URL);
     const $ = parseDOM(html);
     const animeList: AnimeItem[] = [];
@@ -78,20 +100,24 @@ export async function scrapeHomePage(): Promise<ScraperResult<AnimeItem[]>> {
 
     // Enrich ALL titles with full Japanese title from detail page for maximum accuracy
     logger.info(`Enriching ${animeList.length} anime titles from Samehadaku detail pages...`);
-    
+
     const enrichPromises = animeList.map(async (anime) => {
       // ALWAYS fetch detail page to get official Japanese title from synopsis
-      logger.debug(`Fetching full title for: "${anime.animename}"`);
       const fullTitle = await extractFullTitleFromDetailPage(anime.slug);
       if (fullTitle !== null) {
-        logger.info(`Enriched: "${anime.animename}" → "${fullTitle}"`);
+        logger.debug(`Enriched: "${anime.animename}" → "${fullTitle}"`);
         anime.animename = fullTitle;
-      } else {
-        logger.debug(`No full title found, keeping original: "${anime.animename}"`);
       }
     });
 
     await Promise.all(enrichPromises);
+
+    // Cache the enriched results
+    cachedHomePageResult = {
+      data: animeList,
+      timestamp: Date.now()
+    };
+    logger.debug(`Cached enriched home page (${animeList.length} anime, TTL: 5 minutes)`);
 
     return {
       success: true,

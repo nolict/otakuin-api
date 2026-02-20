@@ -1,5 +1,5 @@
-import { compareTwoStrings } from 'string-similarity';
 import { TfIdf } from 'natural';
+import { compareTwoStrings } from 'string-similarity';
 
 import type { AnimeItem } from '../../types/anime';
 import type { JikanAnimeData } from '../../types/jikan';
@@ -38,33 +38,33 @@ function getAllTitles(jikanData: JikanAnimeData): string[] {
 
 function getStudioNames(jikanData: JikanAnimeData): string[] {
   const studios: string[] = [];
-  
+
   if (jikanData.studios !== undefined) {
     studios.push(...jikanData.studios.map((s) => s.name.toLowerCase()));
   }
-  
+
   if (jikanData.producers !== undefined) {
     studios.push(...jikanData.producers.map((p) => p.name.toLowerCase()));
   }
-  
+
   return studios;
 }
 
 function getGenreNames(jikanData: JikanAnimeData): string[] {
   const genres: string[] = [];
-  
+
   if (jikanData.genres !== undefined) {
     genres.push(...jikanData.genres.map((g) => g.name.toLowerCase()));
   }
-  
+
   if (jikanData.themes !== undefined) {
     genres.push(...jikanData.themes.map((t) => t.name.toLowerCase()));
   }
-  
+
   if (jikanData.demographics !== undefined) {
     genres.push(...jikanData.demographics.map((d) => d.name.toLowerCase()));
   }
-  
+
   return genres;
 }
 
@@ -72,10 +72,10 @@ function calculateJaccardSimilarity(set1: string[], set2: string[]): number {
   if (set1.length === 0 || set2.length === 0) {
     return 0;
   }
-  
+
   const intersection = set1.filter((item) => set2.includes(item));
   const union = [...new Set([...set1, ...set2])];
-  
+
   return intersection.length / union.length;
 }
 
@@ -83,30 +83,30 @@ function calculateSynopsisSimilarity(synopsis1: string | null, synopsis2: string
   if (synopsis1 === null || synopsis2 === null) {
     return 0;
   }
-  
+
   const tfidf = new TfIdf();
   tfidf.addDocument(synopsis1.toLowerCase());
   tfidf.addDocument(synopsis2.toLowerCase());
-  
+
   const terms1 = synopsis1.toLowerCase().split(/\s+/).filter((w) => w.length > 3);
   const terms2 = synopsis2.toLowerCase().split(/\s+/).filter((w) => w.length > 3);
-  
+
   if (terms1.length === 0 || terms2.length === 0) {
     return 0;
   }
-  
+
   let similarity = 0;
   const uniqueTerms = [...new Set([...terms1, ...terms2])];
-  
+
   for (const term of uniqueTerms.slice(0, 50)) {
     const score1 = tfidf.tfidf(term, 0);
     const score2 = tfidf.tfidf(term, 1);
-    
+
     if (score1 > 0 && score2 > 0) {
       similarity += Math.min(score1, score2);
     }
   }
-  
+
   return Math.min(similarity / 10, 1);
 }
 
@@ -116,7 +116,7 @@ function calculatePartialTitleScore(scrapedTitle: string, jikanTitle: string): n
   if (exactScore >= 0.85) {
     return exactScore;
   }
-  
+
   // Handle short titles (like "Shibouyugi" vs "Shibou Yuugi de Meshi wo Kuu")
   // Check if scraped title is a substring or prefix
   if (scrapedTitle.length >= 4) {
@@ -127,37 +127,37 @@ function calculatePartialTitleScore(scrapedTitle: string, jikanTitle: string): n
       return 0.95; // Very high score for prefix match
     }
   }
-  
+
   const scrapedWords = scrapedTitle.split(' ').filter((w) => w.length > 2);
   const jikanWords = jikanTitle.split(' ').filter((w) => w.length > 2);
-  
+
   if (scrapedWords.length === 0 || jikanWords.length === 0) {
     return exactScore;
   }
-  
+
   let totalScore = 0;
   let matchedWords = 0;
-  
+
   for (const scrapedWord of scrapedWords) {
     let bestWordScore = 0;
-    
+
     for (const jikanWord of jikanWords) {
       const wordSimilarity = compareTwoStrings(scrapedWord, jikanWord);
       if (wordSimilarity > bestWordScore) {
         bestWordScore = wordSimilarity;
       }
     }
-    
+
     if (bestWordScore >= 0.7) {
       totalScore += bestWordScore;
       matchedWords++;
     }
   }
-  
+
   if (matchedWords === 0) {
     return exactScore;
   }
-  
+
   return totalScore / scrapedWords.length;
 }
 
@@ -175,26 +175,26 @@ export function findBestMatchFromJikanResults(
 
   for (const jikanData of jikanResults) {
     let totalScore = 0;
-    
+
     // 1. Title Similarity (30 points max)
     const jikanTitles = getAllTitles(jikanData);
     let bestTitleScore = 0;
-    
+
     for (const jikanTitle of jikanTitles) {
       const normalizedJikanTitle = normalizeTitle(jikanTitle);
       const titleScore = calculatePartialTitleScore(scrapedTitle, normalizedJikanTitle);
-      
+
       if (titleScore > bestTitleScore) {
         bestTitleScore = titleScore;
       }
     }
-    
+
     totalScore += bestTitleScore * 60;
-    
+
     // 2. Studio/Producer Match (15 points max)
     const studios = getStudioNames(jikanData);
     const scrapedTitleLower = scrapedItem.animename.toLowerCase();
-    
+
     let studioScore = 0;
     for (const studio of studios) {
       if (scrapedTitleLower.includes(studio) && studio.length > 3) {
@@ -202,39 +202,51 @@ export function findBestMatchFromJikanResults(
         break;
       }
     }
-    
+
     if (studioScore === 0 && studios.length > 0) {
       studioScore = 3;
     }
-    
+
     totalScore += studioScore;
-    
+
     // 3. Genre Overlap (15 points max)
     const jikanGenres = getGenreNames(jikanData);
-    
+
     const scrapedGenreHints: string[] = [];
-    if (scrapedTitleLower.includes('isekai')) scrapedGenreHints.push('isekai');
-    if (scrapedTitleLower.includes('fantasy')) scrapedGenreHints.push('fantasy');
-    if (scrapedTitleLower.includes('romance')) scrapedGenreHints.push('romance');
-    if (scrapedTitleLower.includes('action')) scrapedGenreHints.push('action');
-    if (scrapedTitleLower.includes('comedy')) scrapedGenreHints.push('comedy');
-    if (scrapedTitleLower.includes('school')) scrapedGenreHints.push('school');
-    
+    if (scrapedTitleLower.includes('isekai')) {
+      scrapedGenreHints.push('isekai');
+    }
+    if (scrapedTitleLower.includes('fantasy')) {
+      scrapedGenreHints.push('fantasy');
+    }
+    if (scrapedTitleLower.includes('romance')) {
+      scrapedGenreHints.push('romance');
+    }
+    if (scrapedTitleLower.includes('action')) {
+      scrapedGenreHints.push('action');
+    }
+    if (scrapedTitleLower.includes('comedy')) {
+      scrapedGenreHints.push('comedy');
+    }
+    if (scrapedTitleLower.includes('school')) {
+      scrapedGenreHints.push('school');
+    }
+
     const genreOverlap = calculateJaccardSimilarity(scrapedGenreHints, jikanGenres);
     totalScore += genreOverlap * 15;
-    
+
     // 4. Synopsis Similarity (15 points max) - Skip for performance
     // Only calculate if title score is low
     if (bestTitleScore < 0.7 && jikanData.synopsis !== null) {
       const synopsisScore = calculateSynopsisSimilarity(scrapedItem.animename, jikanData.synopsis);
       totalScore += synopsisScore * 15;
     }
-    
+
     // 5. Year Proximity (10 points max)
     const currentYear = new Date().getFullYear();
     const jikanYear = jikanData.year ?? currentYear;
     const yearDiff = Math.abs(currentYear - jikanYear);
-    
+
     if (yearDiff === 0) {
       totalScore += 10;
     } else if (yearDiff <= 1) {
@@ -242,7 +254,7 @@ export function findBestMatchFromJikanResults(
     } else if (yearDiff <= 2) {
       totalScore += 4;
     }
-    
+
     // 6. Type Match (5 points max)
     const jikanType = (jikanData.type ?? '').toLowerCase();
     if (jikanType === 'tv' || jikanType.includes('tv')) {
@@ -250,7 +262,7 @@ export function findBestMatchFromJikanResults(
     } else if (jikanType === 'movie' && scrapedTitleLower.includes('movie')) {
       totalScore += 5;
     }
-    
+
     // 7. Episode Count Validation (5 points max)
     if (jikanData.episodes !== null && jikanData.episodes > 0) {
       totalScore += 5;

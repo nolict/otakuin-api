@@ -30,11 +30,11 @@ function mergeAnimeItems(
   for (const item of samehadakuItems) {
     const key = item.animename.toLowerCase().trim();
     const normalizedKey = normalizeTitle(item.animename);
-    
+
     mergedMap.set(key, {
       animename: item.animename
     });
-    
+
     titleIndex.set(normalizedKey, key);
   }
 
@@ -55,7 +55,7 @@ function mergeAnimeItems(
       mergedMap.set(key, {
         animename: item.animename
       });
-      
+
       titleIndex.set(normalizedKey, key);
     }
   }
@@ -102,10 +102,10 @@ async function normalizeToMAL(
       if (words.length >= 2) {
         const expandedQuery = words.slice(0, Math.min(3, words.length)).join(' ');
         logger.debug(`Fallback search with expanded query: "${expandedQuery}"`);
-        
+
         await new Promise((resolve) => setTimeout(resolve, 350));
         const fallbackResult = await searchAnimeByTitle(expandedQuery);
-        
+
         if (fallbackResult.success && fallbackResult.data !== undefined) {
           const fallbackMatch = findBestMatchFromJikanResults(
             {
@@ -116,14 +116,14 @@ async function normalizeToMAL(
             },
             fallbackResult.data
           );
-          
+
           if (fallbackMatch !== null) {
             logger.info(`✅ Fallback match found: ${item.animename} → MAL ID ${fallbackMatch.mal_id}`);
-            
+
             const coverUrl = fallbackMatch.images.jpg.large_image_url ??
                              fallbackMatch.images.jpg.image_url ??
                              '';
-            
+
             malMap.set(fallbackMatch.mal_id, {
               mal_id: fallbackMatch.mal_id,
               name: fallbackMatch.title,
@@ -138,7 +138,7 @@ async function normalizeToMAL(
           }
         }
       }
-      
+
       logger.warn(`No MAL match found for: ${item.animename}`);
       failedAnime.push(item.animename);
       continue;
