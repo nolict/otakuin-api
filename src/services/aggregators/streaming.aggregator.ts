@@ -146,7 +146,26 @@ function buildAnimasuEpisodeUrl(slug: string, episode: number): string {
 }
 
 async function enrichWithVideoUrls(sources: StreamingLink[]): Promise<void> {
-  const extractionPromises = sources.map(async (source) => {
+  // Mega.nz has rate limits, so prioritize highest resolution first
+  const megaSources = sources.filter(s => isMegaUrl(s.url));
+  const nonMegaSources = sources.filter(s => !isMegaUrl(s.url));
+
+  // Sort Mega sources by resolution priority (1080p > 720p > 480p > 360p)
+  const resolutionPriority: Record<string, number> = {
+    '1080p': 1,
+    '720p': 2,
+    '480p': 3,
+    '360p': 4
+  };
+
+  megaSources.sort((a, b) => {
+    const priorityA = resolutionPriority[a.resolution] ?? 999;
+    const priorityB = resolutionPriority[b.resolution] ?? 999;
+    return priorityA - priorityB;
+  });
+
+  // Extract non-Mega sources in parallel (no rate limit)
+  const nonMegaPromises = nonMegaSources.map(async (source) => {
     if (isWibufileUrl(source.url)) {
       const timer = logger.createTimer();
       const videoUrl = await extractWibufileVideo(source);
@@ -171,16 +190,34 @@ async function enrichWithVideoUrls(sources: StreamingLink[]): Promise<void> {
       source.url_video = videoUrl;
       const duration = timer.split();
       logger.perf(duration, { provider: source.provider, has_video: videoUrl !== null && videoUrl !== '' });
-    } else if (isMegaUrl(source.url)) {
-      const timer = logger.createTimer();
-      const videoUrl = await extractMegaVideoUrl(source.url);
-      source.url_video = videoUrl;
-      const duration = timer.split();
-      logger.perf(duration, { provider: source.provider, has_video: videoUrl !== null && videoUrl !== '' });
     }
   });
 
-  await Promise.all(extractionPromises);
+  // Extract Mega sources sequentially by priority (highest resolution first)
+  // This ensures we extract the best quality before hitting rate limits
+  for (const source of megaSources) {
+    const timer = logger.createTimer();
+    const videoUrl = await extractMegaVideoUrl(source.url);
+    source.url_video = videoUrl;
+    const duration = timer.split();
+    logger.perf(duration, {
+      provider: source.provider,
+      resolution: source.resolution,
+      has_video: videoUrl !== null && videoUrl !== ''
+    });
+
+    // If extraction succeeded, we got the highest priority - can continue
+    // If failed (rate limit), lower priority Mega sources will also likely fail
+    if (videoUrl !== null) {
+      logger.debug('Mega.nz extraction successful', { resolution: source.resolution });
+    } else {
+      logger.debug('Mega.nz extraction failed, skipping lower priority Mega sources');
+      // Mark remaining Mega sources as failed to avoid unnecessary requests
+      break;
+    }
+  }
+
+  await Promise.all(nonMegaPromises);
 }
 
 async function generateAndSaveVideoCodes(sources: StreamingLink[]): Promise<void> {

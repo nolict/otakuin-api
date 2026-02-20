@@ -42,7 +42,14 @@ export async function extractMegaVideoUrl(embedUrl: string): Promise<string | nu
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error('Failed to extract Mega.nz video URL', { error: errorMessage });
+
+    // Check if it's a rate limit error
+    if (errorMessage.includes('ETOOMANY') || errorMessage.includes('Too many')) {
+      logger.warn('Mega.nz rate limit reached - too many concurrent accesses', { url: embedUrl });
+    } else {
+      logger.error('Failed to extract Mega.nz video URL', { error: errorMessage });
+    }
+
     return null;
   }
 }
@@ -107,7 +114,14 @@ export async function streamMegaVideo(
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error('Failed to stream Mega.nz video', { error: errorMessage });
+
+    // Check if it's a rate limit error
+    if (errorMessage.includes('ETOOMANY') || errorMessage.includes('Too many')) {
+      logger.warn('Mega.nz rate limit reached during streaming', { error: errorMessage });
+    } else {
+      logger.error('Failed to stream Mega.nz video', { error: errorMessage });
+    }
+
     return null;
   }
 }
