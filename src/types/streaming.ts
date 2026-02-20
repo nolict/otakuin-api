@@ -12,12 +12,14 @@ export interface StreamingLink {
 export interface StreamingResponse {
   mal_id: number;
   episode: number;
+  anime_title?: string;
   sources: StreamingLink[];
 }
 
 export interface StreamingCacheData {
   mal_id: number;
   episode: number;
+  anime_title?: string;
   sources: StreamingLink[];
   cached_at: string;
   expires_at: string;

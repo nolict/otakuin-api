@@ -6,3 +6,6 @@ dist/
 .DS_Store
 coverage/
 tmp_rovodev_*
+
+# GitHub Action Worker Project (separate development)
+github-action-worker/

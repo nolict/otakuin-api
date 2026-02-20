@@ -290,3 +290,196 @@ $$ LANGUAGE plpgsql;
 -- Note: Cleanup queries are commented out because the API now filters
 -- removed providers automatically. Run these queries only if you want
 -- to permanently remove old data from the database.
+
+
+-- ============================================
+-- VIDEO STORAGE SYSTEM - Phase 2.18
+-- ============================================
+
+-- Table 7: GitHub Storage Accounts
+-- Purpose: Store GitHub account credentials for multi-account video storage
+CREATE TABLE IF NOT EXISTS github_storage_accounts (
+  id BIGSERIAL PRIMARY KEY,
+  account_name VARCHAR(100) NOT NULL UNIQUE,
+  github_username VARCHAR(100) NOT NULL,
+  github_token TEXT NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  total_repos INTEGER NOT NULL DEFAULT 0,
+  total_episodes INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_github_accounts_active ON github_storage_accounts(is_active);
+
+CREATE TRIGGER update_github_storage_accounts_updated_at
+  BEFORE UPDATE ON github_storage_accounts
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+COMMENT ON TABLE github_storage_accounts IS 'Multi-account GitHub storage configuration for video backup';
+COMMENT ON COLUMN github_storage_accounts.account_name IS 'Friendly name for the account (e.g., storage-account-1)';
+COMMENT ON COLUMN github_storage_accounts.github_username IS 'GitHub username for API access';
+COMMENT ON COLUMN github_storage_accounts.github_token IS 'GitHub Personal Access Token (PAT) with repo permissions';
+COMMENT ON COLUMN github_storage_accounts.is_active IS 'Whether this account is available for uploads';
+COMMENT ON COLUMN github_storage_accounts.total_repos IS 'Total repositories created under this account';
+COMMENT ON COLUMN github_storage_accounts.total_episodes IS 'Total episodes stored across all repos in this account';
+
+
+-- Table 8: GitHub Storage Repositories
+-- Purpose: Track created repositories for video storage (max 500 episodes per repo)
+CREATE TABLE IF NOT EXISTS github_storage_repos (
+  id BIGSERIAL PRIMARY KEY,
+  repo_name VARCHAR(200) NOT NULL,
+  github_account_id BIGINT NOT NULL REFERENCES github_storage_accounts(id) ON DELETE CASCADE,
+  repo_url TEXT NOT NULL,
+  episode_count INTEGER NOT NULL DEFAULT 0,
+  is_full BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(repo_name, github_account_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_github_repos_account ON github_storage_repos(github_account_id);
+CREATE INDEX IF NOT EXISTS idx_github_repos_full ON github_storage_repos(is_full);
+
+CREATE TRIGGER update_github_storage_repos_updated_at
+  BEFORE UPDATE ON github_storage_repos
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+COMMENT ON TABLE github_storage_repos IS 'Track GitHub repositories for video storage with 500 episode limit';
+COMMENT ON COLUMN github_storage_repos.repo_name IS 'Repository name (e.g., anime-video-storage-1)';
+COMMENT ON COLUMN github_storage_repos.github_account_id IS 'Foreign key to github_storage_accounts';
+COMMENT ON COLUMN github_storage_repos.repo_url IS 'Full GitHub repository URL';
+COMMENT ON COLUMN github_storage_repos.episode_count IS 'Current number of episodes in this repo';
+COMMENT ON COLUMN github_storage_repos.is_full IS 'True when episode_count >= 500';
+
+
+-- Table 9: Video Queue
+-- Purpose: Queue system for video downloads via GitHub Actions
+CREATE TABLE IF NOT EXISTS video_queue (
+  id BIGSERIAL PRIMARY KEY,
+  mal_id INTEGER NOT NULL,
+  episode INTEGER NOT NULL,
+  anime_title TEXT NOT NULL,
+  code VARCHAR(10) NOT NULL,
+  provider VARCHAR(50) NOT NULL,
+  url_video TEXT NOT NULL,
+  resolution VARCHAR(20) NOT NULL,
+  server INTEGER NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending',
+  priority INTEGER NOT NULL DEFAULT 0,
+  error_message TEXT,
+  retry_count INTEGER NOT NULL DEFAULT 0,
+  max_retries INTEGER NOT NULL DEFAULT 3,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  started_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
+  UNIQUE(mal_id, episode, resolution, server)
+);
+
+CREATE INDEX IF NOT EXISTS idx_video_queue_status ON video_queue(status);
+CREATE INDEX IF NOT EXISTS idx_video_queue_priority ON video_queue(priority DESC, created_at ASC);
+CREATE INDEX IF NOT EXISTS idx_video_queue_mal_episode ON video_queue(mal_id, episode);
+
+CREATE TRIGGER update_video_queue_updated_at
+  BEFORE UPDATE ON video_queue
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+COMMENT ON TABLE video_queue IS 'Queue system for video downloads with GitHub Actions integration';
+COMMENT ON COLUMN video_queue.mal_id IS 'MyAnimeList anime ID';
+COMMENT ON COLUMN video_queue.episode IS 'Episode number';
+COMMENT ON COLUMN video_queue.anime_title IS 'Anime title for file naming';
+COMMENT ON COLUMN video_queue.code IS 'Short code from streaming API';
+COMMENT ON COLUMN video_queue.provider IS 'Video provider (wibufile, filedon, etc)';
+COMMENT ON COLUMN video_queue.url_video IS 'Direct video URL for download';
+COMMENT ON COLUMN video_queue.resolution IS 'Video resolution (360p, 720p, 1080p)';
+COMMENT ON COLUMN video_queue.server IS 'Server number for ordering (1, 2, 3, etc)';
+COMMENT ON COLUMN video_queue.status IS 'Queue status: pending, processing, completed, failed';
+COMMENT ON COLUMN video_queue.priority IS 'Higher number = higher priority (0 = normal)';
+COMMENT ON COLUMN video_queue.error_message IS 'Error details if status = failed';
+COMMENT ON COLUMN video_queue.retry_count IS 'Number of retry attempts';
+COMMENT ON COLUMN video_queue.max_retries IS 'Maximum retry attempts before permanent failure';
+
+
+-- Table 10: Video Storage
+-- Purpose: Track successfully uploaded videos across all GitHub accounts
+CREATE TABLE IF NOT EXISTS video_storage (
+  id BIGSERIAL PRIMARY KEY,
+  mal_id INTEGER NOT NULL,
+  episode INTEGER NOT NULL,
+  anime_title TEXT NOT NULL,
+  code VARCHAR(10) NOT NULL,
+  resolution VARCHAR(20) NOT NULL,
+  server INTEGER NOT NULL,
+  file_name TEXT NOT NULL,
+  file_size_bytes BIGINT,
+  release_tag VARCHAR(100) NOT NULL,
+  github_urls JSONB NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(mal_id, episode, resolution, server)
+);
+
+CREATE INDEX IF NOT EXISTS idx_video_storage_mal_episode ON video_storage(mal_id, episode);
+CREATE INDEX IF NOT EXISTS idx_video_storage_code ON video_storage(code);
+CREATE INDEX IF NOT EXISTS idx_video_storage_release ON video_storage(release_tag);
+
+CREATE TRIGGER update_video_storage_updated_at
+  BEFORE UPDATE ON video_storage
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+COMMENT ON TABLE video_storage IS 'Track uploaded videos with multi-account GitHub Release URLs';
+COMMENT ON COLUMN video_storage.mal_id IS 'MyAnimeList anime ID';
+COMMENT ON COLUMN video_storage.episode IS 'Episode number';
+COMMENT ON COLUMN video_storage.anime_title IS 'Anime title for reference';
+COMMENT ON COLUMN video_storage.code IS 'Short code from streaming API';
+COMMENT ON COLUMN video_storage.resolution IS 'Video resolution (360p, 720p, 1080p)';
+COMMENT ON COLUMN video_storage.server IS 'Server number matching streaming API order';
+COMMENT ON COLUMN video_storage.file_name IS 'Obfuscated file name on GitHub';
+COMMENT ON COLUMN video_storage.file_size_bytes IS 'Video file size in bytes';
+COMMENT ON COLUMN video_storage.release_tag IS 'GitHub Release tag (e.g., anime-21 for One Piece)';
+COMMENT ON COLUMN video_storage.github_urls IS 'JSON array of download URLs from all accounts: [{"account": "storage-1", "url": "https://github.com/..."}]';
+
+
+-- Update cleanup function to include new tables (video_queue old entries)
+CREATE OR REPLACE FUNCTION cleanup_expired_cache()
+RETURNS INTEGER AS $$
+DECLARE
+  deleted_anime INTEGER;
+  deleted_streaming INTEGER;
+  deleted_video_code INTEGER;
+  deleted_video_url INTEGER;
+  deleted_home_page INTEGER;
+  deleted_completed_queue INTEGER;
+  total_deleted INTEGER;
+BEGIN
+  DELETE FROM anime_cache WHERE expires_at < NOW();
+  GET DIAGNOSTICS deleted_anime = ROW_COUNT;
+  
+  DELETE FROM streaming_cache WHERE expires_at < NOW();
+  GET DIAGNOSTICS deleted_streaming = ROW_COUNT;
+  
+  DELETE FROM video_code_cache WHERE expires_at < NOW();
+  GET DIAGNOSTICS deleted_video_code = ROW_COUNT;
+  
+  DELETE FROM video_url_cache WHERE expires_at < NOW();
+  GET DIAGNOSTICS deleted_video_url = ROW_COUNT;
+  
+  DELETE FROM home_page_cache WHERE expires_at < NOW();
+  GET DIAGNOSTICS deleted_home_page = ROW_COUNT;
+  
+  -- Clean up completed/failed queue items older than 7 days
+  DELETE FROM video_queue 
+  WHERE status IN ('completed', 'failed') 
+    AND completed_at < NOW() - INTERVAL '7 days';
+  GET DIAGNOSTICS deleted_completed_queue = ROW_COUNT;
+  
+  total_deleted := deleted_anime + deleted_streaming + deleted_video_code + deleted_video_url + deleted_home_page + deleted_completed_queue;
+  RETURN total_deleted;
+END;
+$$ LANGUAGE plpgsql;

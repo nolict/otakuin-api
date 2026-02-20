@@ -39,6 +39,7 @@ export async function getStreamingLinks(malId: number, episode: number): Promise
     return {
       mal_id: malId,
       episode,
+      anime_title: cachedData.anime_title,
       sources: sortedSources
     };
   }
@@ -51,6 +52,7 @@ export async function getStreamingLinks(malId: number, episode: number): Promise
     return {
       mal_id: malId,
       episode,
+      anime_title: undefined,
       sources: []
     };
   }
@@ -129,11 +131,31 @@ export async function getStreamingLinks(malId: number, episode: number): Promise
   const normalizedSources = filteredSources.map(normalizeSourceFieldOrder);
   const sortedSources = sortSources(normalizedSources);
 
+  const animeTitle = await getAnimeTitle(malId);
+
   return {
     mal_id: malId,
     episode,
+    anime_title: animeTitle,
     sources: sortedSources
   };
+}
+
+async function getAnimeTitle(malId: number): Promise<string | undefined> {
+  try {
+    const response = await fetch(`https://api.jikan.moe/v4/anime/${malId}`, {
+      headers: { Accept: 'application/json' }
+    });
+
+    if (!response.ok) {
+      return undefined;
+    }
+
+    const jsonData = await response.json() as { data?: { title?: string } };
+    return jsonData.data?.title;
+  } catch {
+    return undefined;
+  }
 }
 
 function buildSamehadakuEpisodeUrl(slug: string, episode: number): string {

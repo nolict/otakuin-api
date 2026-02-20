@@ -1,7 +1,13 @@
 import { Elysia } from 'elysia';
 
 import { getStreamingLinks } from '../services/aggregators/streaming.aggregator';
+import { triggerGitHubAction } from '../services/github/dispatcher';
+import { addToQueue } from '../services/repositories/video-queue.repository';
+import { checkVideoExists, getStoredVideosByEpisode } from '../services/repositories/video-storage.repository';
 import { logger } from '../utils/logger';
+
+import type { StreamingLink } from '../types/streaming';
+import type { VideoStorageItem } from '../types/video-storage';
 
 export const streamingRoutes = new Elysia({ prefix: '/api/streaming' })
   .get('/:id/:episode', async ({ params, set }) => {
@@ -13,7 +19,8 @@ export const streamingRoutes = new Elysia({ prefix: '/api/streaming' })
         set.status = 400;
         return {
           error: 'Invalid MAL ID. Must be a positive integer.',
-          sources: []
+          sources: [],
+          saved_videos: []
         };
       }
 
@@ -21,7 +28,8 @@ export const streamingRoutes = new Elysia({ prefix: '/api/streaming' })
         set.status = 400;
         return {
           error: 'Invalid episode number. Must be a positive integer.',
-          sources: []
+          sources: [],
+          saved_videos: []
         };
       }
 
@@ -31,7 +39,53 @@ export const streamingRoutes = new Elysia({ prefix: '/api/streaming' })
         logger.warn(`No streaming sources found for MAL ${malId} Episode ${episode}`);
       }
 
-      return result;
+      const storedVideos = await getStoredVideosByEpisode(malId, episode);
+
+      let hasNewQueueItems = false;
+
+      const sourcesWithQueue = await Promise.all(
+        result.sources.map(async (source: StreamingLink) => {
+          if (source.url_video !== null && source.url_video !== undefined && source.url_video.length > 0) {
+            const exists = await checkVideoExists(malId, episode, source.resolution, parseInt(source.server ?? '1', 10));
+
+            if (!exists) {
+              const added = await addToQueue({
+                mal_id: malId,
+                episode,
+                anime_title: result.anime_title ?? `Anime ${malId}`,
+                code: source.code ?? '',
+                provider: source.provider,
+                url_video: source.url_video,
+                resolution: source.resolution,
+                server: parseInt(source.server ?? '1', 10),
+                status: 'pending'
+              });
+
+              if (added !== null) {
+                hasNewQueueItems = true;
+              }
+            }
+          }
+
+          return source;
+        })
+      );
+
+      if (hasNewQueueItems) {
+        void triggerGitHubAction();
+      }
+
+      return {
+        ...result,
+        sources: sourcesWithQueue,
+        saved_videos: storedVideos.map((video: VideoStorageItem) => ({
+          resolution: video.resolution,
+          server: video.server,
+          file_name: video.file_name,
+          file_size_bytes: video.file_size_bytes,
+          github_urls: video.github_urls
+        }))
+      };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       logger.error(`Error fetching streaming links: ${errorMessage}`);

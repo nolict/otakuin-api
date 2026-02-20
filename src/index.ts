@@ -6,6 +6,7 @@ import { homeRoute } from './api/home';
 import { streamingRoutes } from './api/streaming';
 import { videoRoute } from './api/video';
 import { videoProxyRoute } from './api/video-proxy';
+import { webhookRoutes } from './api/webhook';
 
 const app = new Elysia()
   .use(cors({
@@ -19,15 +20,21 @@ const app = new Elysia()
   .use(streamingRoutes)
   .use(videoRoute)
   .use(videoProxyRoute)
+  .use(webhookRoutes)
   .get('/', () => ({
     message: 'Anime Scraper API',
-    version: '1.15.0',
+    version: '1.16.0',
     endpoints: {
       home: '/api/home',
       anime: '/api/anime/:id_mal',
       streaming: '/api/streaming/:id/:episode',
       video: '/api/video/:code',
-      videoProxy: '/api/video-proxy?url={encoded_video_url}'
+      videoProxy: '/api/video-proxy?url={encoded_video_url}',
+      webhook: {
+        queueTrigger: 'POST /api/webhook/queue-trigger',
+        queueStats: 'GET /api/webhook/queue-stats',
+        queueComplete: 'POST /api/webhook/queue-complete'
+      }
     }
   }))
   .listen(3000);
