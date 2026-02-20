@@ -15,3 +15,7 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseKey, {
     autoRefreshToken: false
   }
 }) as SupabaseClient;
+
+export function getSupabaseClient(): SupabaseClient {
+  return supabase;
+}

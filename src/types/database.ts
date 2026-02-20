@@ -73,3 +73,28 @@ export interface AnimeCacheInsert {
   metadata: AnimeCacheMetadata;
   expires_at: string;
 }
+
+export interface HomePageCache {
+  id: number;
+  mal_id: number;
+  name: string;
+  cover: string;
+  last_episode: number | null;
+  slug_samehadaku: string | null;
+  slug_animasu: string | null;
+  aired_from: string | null;
+  expires_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface HomePageCacheInsert {
+  mal_id: number;
+  name: string;
+  cover: string;
+  last_episode: number | null;
+  slug_samehadaku: string | null;
+  slug_animasu: string | null;
+  aired_from: string | null;
+  expires_at: string;
+}

@@ -114,3 +114,17 @@ export interface JikanAnimeData {
 export interface JikanResponse {
   data: JikanAnimeData;
 }
+
+export interface JikanSearchResponse {
+  data: JikanAnimeData[];
+  pagination: {
+    last_visible_page: number;
+    has_next_page: boolean;
+    current_page: number;
+    items: {
+      count: number;
+      total: number;
+      per_page: number;
+    };
+  };
+}

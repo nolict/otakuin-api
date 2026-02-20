@@ -163,7 +163,49 @@ COMMENT ON COLUMN video_url_cache.video_url IS 'Extracted direct video URL';
 COMMENT ON COLUMN video_url_cache.expires_at IS 'Cache expiration timestamp (6 hours from creation)';
 
 
--- Update cleanup function to include video_code_cache and video_url_cache
+-- ============================================
+-- Table 6: Home Page Cache (Temporary Storage - 6 hours TTL)
+-- ============================================
+-- Purpose: Cache home page anime list with MAL metadata to reduce scraping overhead
+CREATE TABLE IF NOT EXISTS home_page_cache (
+  id BIGSERIAL PRIMARY KEY,
+  mal_id INTEGER NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  cover TEXT NOT NULL,
+  last_episode INTEGER,
+  slug_samehadaku TEXT,
+  slug_animasu TEXT,
+  aired_from TIMESTAMPTZ,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Index for fast lookup by MAL ID
+CREATE INDEX IF NOT EXISTS idx_home_page_cache_mal_id ON home_page_cache(mal_id);
+
+-- Index for automatic cleanup of expired entries
+CREATE INDEX IF NOT EXISTS idx_home_page_cache_expires_at ON home_page_cache(expires_at);
+
+-- Trigger for automatic updated_at timestamp
+CREATE TRIGGER update_home_page_cache_updated_at
+  BEFORE UPDATE ON home_page_cache
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+-- Comments for documentation
+COMMENT ON TABLE home_page_cache IS 'Temporary cache for home page anime list with 6 hour TTL';
+COMMENT ON COLUMN home_page_cache.mal_id IS 'MyAnimeList ID (primary identifier)';
+COMMENT ON COLUMN home_page_cache.name IS 'Anime title from MAL';
+COMMENT ON COLUMN home_page_cache.cover IS 'Cover image URL from MAL';
+COMMENT ON COLUMN home_page_cache.last_episode IS 'Latest episode number from scraped sources';
+COMMENT ON COLUMN home_page_cache.slug_samehadaku IS 'Samehadaku anime slug for URL construction';
+COMMENT ON COLUMN home_page_cache.slug_animasu IS 'Animasu anime slug for URL construction';
+COMMENT ON COLUMN home_page_cache.aired_from IS 'Anime air date from MAL (for is_new calculation)';
+COMMENT ON COLUMN home_page_cache.expires_at IS 'Cache expiration timestamp (6 hours from creation)';
+
+
+-- Update cleanup function to include all cache tables
 CREATE OR REPLACE FUNCTION cleanup_expired_cache()
 RETURNS INTEGER AS $$
 DECLARE
@@ -171,6 +213,7 @@ DECLARE
   deleted_streaming INTEGER;
   deleted_video_code INTEGER;
   deleted_video_url INTEGER;
+  deleted_home_page INTEGER;
   total_deleted INTEGER;
 BEGIN
   DELETE FROM anime_cache WHERE expires_at < NOW();
@@ -185,7 +228,10 @@ BEGIN
   DELETE FROM video_url_cache WHERE expires_at < NOW();
   GET DIAGNOSTICS deleted_video_url = ROW_COUNT;
   
-  total_deleted := deleted_anime + deleted_streaming + deleted_video_code + deleted_video_url;
+  DELETE FROM home_page_cache WHERE expires_at < NOW();
+  GET DIAGNOSTICS deleted_home_page = ROW_COUNT;
+  
+  total_deleted := deleted_anime + deleted_streaming + deleted_video_code + deleted_video_url + deleted_home_page;
   RETURN total_deleted;
 END;
 $$ LANGUAGE plpgsql;

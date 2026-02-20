@@ -2,6 +2,7 @@ export interface AnimeItem {
   slug: string;
   animename: string;
   coverurl: string;
+  lastEpisode?: number;
 }
 
 export interface ScraperResult<T> {
@@ -69,4 +70,15 @@ export interface MatchScore {
   slug: string;
   score: number;
   reasons: string[];
+}
+
+export interface HomeAnimeItem {
+  id: number;
+  name: string;
+  cover: string;
+  last_episode: number | null;
+  slug_samehadaku: string | null;
+  slug_animasu: string | null;
+  is_new: boolean;
+  aired_from: string | null;
 }
