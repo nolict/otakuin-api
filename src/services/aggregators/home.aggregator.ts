@@ -1,12 +1,8 @@
 import { logger } from '../../utils/logger';
 import { searchAnimeByTitle } from '../clients/jikan.client';
 import { findBestMatchFromJikanResults } from '../matchers/home-anime.matcher';
-import { getEpisodeCountBySlug, getSlugsByMalId } from '../repositories/anime-episodes.repository';
-import { createHomePageCacheItem, getCachedHomePage, saveHomePageCache } from '../repositories/home-page-cache.repository';
-import { upsertSlugMapping } from '../repositories/slug-mapping.repository';
+import { getCachedHomePage, saveHomePageCache } from '../repositories/home-page-cache.repository';
 import { scrapeAnimasuHomePage } from '../scrapers/animasu-home.scraper';
-import { scrapeAnimasuDetail } from '../scrapers/animasu.scraper';
-import { scrapeSamehadakuDetail } from '../scrapers/samehadaku-detail.scraper';
 import { scrapeHomePage } from '../scrapers/samehadaku-home.scraper';
 
 import type { AnimeItem, HomeAnimeItem, ScraperResult } from '../../types/anime';
@@ -14,10 +10,14 @@ import type { HomePageCacheInsert } from '../../types/database';
 
 interface MergedAnimeItem {
   animename: string;
-  coverurl: string;
-  lastEpisode: number | null;
-  slugSamehadaku: string | null;
-  slugAnimasu: string | null;
+}
+
+function normalizeTitle(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^\w\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function mergeAnimeItems(
@@ -25,37 +25,38 @@ function mergeAnimeItems(
   animasuItems: AnimeItem[]
 ): Map<string, MergedAnimeItem> {
   const mergedMap = new Map<string, MergedAnimeItem>();
+  const titleIndex = new Map<string, string>();
 
   for (const item of samehadakuItems) {
     const key = item.animename.toLowerCase().trim();
+    const normalizedKey = normalizeTitle(item.animename);
+    
     mergedMap.set(key, {
-      animename: item.animename,
-      coverurl: item.coverurl,
-      lastEpisode: item.lastEpisode ?? null,
-      slugSamehadaku: item.slug,
-      slugAnimasu: null
+      animename: item.animename
     });
+    
+    titleIndex.set(normalizedKey, key);
   }
 
   for (const item of animasuItems) {
     const key = item.animename.toLowerCase().trim();
-    const existing = mergedMap.get(key);
+    const normalizedKey = normalizeTitle(item.animename);
+    let existing = mergedMap.get(key);
 
-    if (existing !== undefined) {
-      existing.slugAnimasu = item.slug;
-      const shouldUpdate = item.lastEpisode !== undefined &&
-                           (existing.lastEpisode === null || item.lastEpisode > existing.lastEpisode);
-      if (shouldUpdate) {
-        existing.lastEpisode = item.lastEpisode;
+    if (existing === undefined) {
+      const matchedKey = titleIndex.get(normalizedKey);
+      if (matchedKey !== undefined) {
+        existing = mergedMap.get(matchedKey);
+        logger.debug(`Fuzzy merged: "${item.animename}" → "${matchedKey}"`);
       }
-    } else {
+    }
+
+    if (existing === undefined) {
       mergedMap.set(key, {
-        animename: item.animename,
-        coverurl: item.coverurl,
-        lastEpisode: item.lastEpisode ?? null,
-        slugSamehadaku: null,
-        slugAnimasu: item.slug
+        animename: item.animename
       });
+      
+      titleIndex.set(normalizedKey, key);
     }
   }
 
@@ -66,6 +67,7 @@ async function normalizeToMAL(
   mergedItems: Map<string, MergedAnimeItem>
 ): Promise<HomePageCacheInsert[]> {
   const malMap = new Map<number, HomePageCacheInsert>();
+  const failedAnime: string[] = [];
 
   let index = 0;
   for (const [, item] of mergedItems) {
@@ -81,122 +83,92 @@ async function normalizeToMAL(
 
     if (!searchResult.success || searchResult.data === undefined) {
       logger.warn(`MAL search failed for: ${item.animename}`);
+      failedAnime.push(item.animename);
       continue;
     }
-
     const bestMatch = findBestMatchFromJikanResults(
       {
-        slug: item.slugSamehadaku ?? item.slugAnimasu ?? '',
+        slug: '',
         animename: item.animename,
-        coverurl: item.coverurl,
-        lastEpisode: item.lastEpisode ?? undefined
+        coverurl: '',
+        lastEpisode: undefined
       },
       searchResult.data
     );
 
     if (bestMatch === null) {
+      // Fallback: Try expanded search with first 2-3 words
+      const words = item.animename.split(' ').filter((w) => w.length > 2);
+      if (words.length >= 2) {
+        const expandedQuery = words.slice(0, Math.min(3, words.length)).join(' ');
+        logger.debug(`Fallback search with expanded query: "${expandedQuery}"`);
+        
+        await new Promise((resolve) => setTimeout(resolve, 350));
+        const fallbackResult = await searchAnimeByTitle(expandedQuery);
+        
+        if (fallbackResult.success && fallbackResult.data !== undefined) {
+          const fallbackMatch = findBestMatchFromJikanResults(
+            {
+              slug: '',
+              animename: item.animename,
+              coverurl: '',
+              lastEpisode: undefined
+            },
+            fallbackResult.data
+          );
+          
+          if (fallbackMatch !== null) {
+            logger.info(`✅ Fallback match found: ${item.animename} → MAL ID ${fallbackMatch.mal_id}`);
+            
+            const coverUrl = fallbackMatch.images.jpg.large_image_url ??
+                             fallbackMatch.images.jpg.image_url ??
+                             '';
+            
+            malMap.set(fallbackMatch.mal_id, {
+              mal_id: fallbackMatch.mal_id,
+              name: fallbackMatch.title,
+              cover: coverUrl,
+              last_episode: null,
+              slug_samehadaku: null,
+              slug_animasu: null,
+              aired_from: fallbackMatch.aired.from,
+              expires_at: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString()
+            });
+            continue;
+          }
+        }
+      }
+      
       logger.warn(`No MAL match found for: ${item.animename}`);
+      failedAnime.push(item.animename);
       continue;
     }
 
-    const existing = malMap.get(bestMatch.mal_id);
-
-    if (existing !== undefined) {
-      logger.debug(`Merging duplicate MAL ID ${bestMatch.mal_id}: ${item.animename}`);
-
-      if (item.slugSamehadaku !== null && existing.slug_samehadaku === null) {
-        existing.slug_samehadaku = item.slugSamehadaku;
-      }
-      if (item.slugAnimasu !== null && existing.slug_animasu === null) {
-        existing.slug_animasu = item.slugAnimasu;
-      }
-
-      if (item.lastEpisode !== null) {
-        if (existing.last_episode === null || item.lastEpisode > existing.last_episode) {
-          existing.last_episode = item.lastEpisode;
-        }
-      }
-
+    if (malMap.has(bestMatch.mal_id)) {
+      logger.debug(`Skipping duplicate MAL ID ${bestMatch.mal_id}: ${item.animename}`);
       continue;
     }
 
     const coverUrl = bestMatch.images.jpg.large_image_url ??
                      bestMatch.images.jpg.image_url ??
-                     item.coverurl;
+                     '';
 
-    let finalEpisodeCount = item.lastEpisode;
-    let finalSlugSamehadaku = item.slugSamehadaku;
-    let finalSlugAnimasu = item.slugAnimasu;
-
-    const dbSlugs = await getSlugsByMalId(bestMatch.mal_id);
-    if (dbSlugs !== null) {
-      if (finalSlugSamehadaku === null && dbSlugs.slugSamehadaku !== null) {
-        finalSlugSamehadaku = dbSlugs.slugSamehadaku;
-        logger.debug(`Got samehadaku slug from DB: ${dbSlugs.slugSamehadaku}`);
-      }
-      if (finalSlugAnimasu === null && dbSlugs.slugAnimasu !== null) {
-        finalSlugAnimasu = dbSlugs.slugAnimasu;
-        logger.debug(`Got animasu slug from DB: ${dbSlugs.slugAnimasu}`);
-      }
-    }
-
-    if (finalEpisodeCount === null && (finalSlugSamehadaku !== null || finalSlugAnimasu !== null)) {
-      const detailScrapeResults = await Promise.all([
-        finalSlugSamehadaku !== null ? scrapeSamehadakuDetail(finalSlugSamehadaku) : null,
-        finalSlugAnimasu !== null ? scrapeAnimasuDetail(finalSlugAnimasu) : null
-      ]);
-
-      const samehadakuDetail = detailScrapeResults[0];
-      const animasuDetail = detailScrapeResults[1];
-
-      if (samehadakuDetail !== null && samehadakuDetail.success && samehadakuDetail.data !== undefined) {
-        const episodeCount = samehadakuDetail.data.episodes.length;
-        if (episodeCount > 0) {
-          finalEpisodeCount = episodeCount;
-          logger.debug(`Got ${episodeCount} episodes from Samehadaku detail for ${item.animename}`);
-        }
-      }
-
-      if (animasuDetail !== null && animasuDetail.success && animasuDetail.data !== undefined) {
-        const episodeCount = animasuDetail.data.episodes.length;
-        if (finalEpisodeCount === null || episodeCount > finalEpisodeCount) {
-          finalEpisodeCount = episodeCount;
-          logger.debug(`Got ${episodeCount} episodes from Animasu detail for ${item.animename}`);
-        }
-      }
-
-      if (dbSlugs === null) {
-        await upsertSlugMapping({
-          mal_id: bestMatch.mal_id,
-          samehadaku_slug: finalSlugSamehadaku,
-          animasu_slug: finalSlugAnimasu,
-          confidence_samehadaku: finalSlugSamehadaku !== null ? 100 : null,
-          confidence_animasu: finalSlugAnimasu !== null ? 100 : null
-        });
-        logger.debug(`Saved slug mapping for MAL ID ${bestMatch.mal_id}`);
-      }
-    }
-
-    if (finalEpisodeCount === null) {
-      const dbEpisodeCount = await getEpisodeCountBySlug(finalSlugSamehadaku, finalSlugAnimasu);
-      if (dbEpisodeCount !== null) {
-        finalEpisodeCount = dbEpisodeCount;
-        logger.debug(`Got episode count from DB cache: ${dbEpisodeCount} for ${item.animename}`);
-      }
-    }
-
-    const cacheItem = createHomePageCacheItem(
-      bestMatch.mal_id,
-      bestMatch.title,
-      coverUrl,
-      finalEpisodeCount,
-      finalSlugSamehadaku,
-      finalSlugAnimasu,
-      bestMatch.aired.from
-    );
-
-    malMap.set(bestMatch.mal_id, cacheItem);
+    malMap.set(bestMatch.mal_id, {
+      mal_id: bestMatch.mal_id,
+      name: bestMatch.title,
+      cover: coverUrl,
+      last_episode: null,
+      slug_samehadaku: null,
+      slug_animasu: null,
+      aired_from: bestMatch.aired.from,
+      expires_at: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString()
+    });
     logger.debug(`Matched: ${item.animename} → MAL ID ${bestMatch.mal_id}`);
+  }
+
+  if (failedAnime.length > 0) {
+    logger.warn(`Failed to match ${failedAnime.length} anime to MAL:`);
+    failedAnime.forEach((name) => logger.warn(`  - ${name}`));
   }
 
   return Array.from(malMap.values());
@@ -228,11 +200,7 @@ export async function getHomePageAnimeList(): Promise<ScraperResult<HomeAnimeIte
         id: cache.mal_id,
         name: cache.name,
         cover: cache.cover,
-        last_episode: cache.last_episode,
-        slug_samehadaku: cache.slug_samehadaku,
-        slug_animasu: cache.slug_animasu,
-        is_new: isNewAnime(cache.aired_from),
-        aired_from: cache.aired_from
+        is_new: isNewAnime(cache.aired_from)
       }));
 
       return {
@@ -280,11 +248,7 @@ export async function getHomePageAnimeList(): Promise<ScraperResult<HomeAnimeIte
       id: cache.mal_id,
       name: cache.name,
       cover: cache.cover,
-      last_episode: cache.last_episode,
-      slug_samehadaku: cache.slug_samehadaku,
-      slug_animasu: cache.slug_animasu,
-      is_new: isNewAnime(cache.aired_from),
-      aired_from: cache.aired_from
+      is_new: isNewAnime(cache.aired_from)
     }));
 
     logger.perf('Home page aggregation completed', timer.elapsed());

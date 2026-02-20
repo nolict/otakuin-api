@@ -57,7 +57,7 @@ export async function searchAnimeByTitle(title: string): Promise<ScraperResult<J
     await delay(350);
 
     const encodedTitle = encodeURIComponent(title);
-    const response = await fetch(`${JIKAN_BASE_URL}/anime?q=${encodedTitle}&limit=10&sfw=false`);
+    const response = await fetch(`${JIKAN_BASE_URL}/anime?q=${encodedTitle}&limit=25&sfw=false`);
 
     if (!response.ok) {
       return {

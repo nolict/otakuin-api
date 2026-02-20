@@ -73,3 +73,37 @@ export async function getSlugsByMalId(malId: number): Promise<{
     slugAnimasu: data.animasu_slug as string | null
   };
 }
+
+export async function batchGetSlugsByMalIds(malIds: number[]): Promise<Map<number, {
+  slugSamehadaku: string | null;
+  slugAnimasu: string | null;
+}>> {
+  if (malIds.length === 0) {
+    return new Map();
+  }
+
+  const supabase = getSupabaseClient();
+
+  const { data, error } = await supabase
+    .from('slug_mappings')
+    .select('mal_id, samehadaku_slug, animasu_slug')
+    .in('mal_id', malIds);
+
+  if (error !== null || data === null) {
+    return new Map();
+  }
+
+  const resultMap = new Map<number, {
+    slugSamehadaku: string | null;
+    slugAnimasu: string | null;
+  }>();
+
+  for (const row of data) {
+    resultMap.set(row.mal_id, {
+      slugSamehadaku: row.samehadaku_slug as string | null,
+      slugAnimasu: row.animasu_slug as string | null
+    });
+  }
+
+  return resultMap;
+}

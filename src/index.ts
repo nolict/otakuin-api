@@ -21,7 +21,7 @@ const app = new Elysia()
   .use(videoProxyRoute)
   .get('/', () => ({
     message: 'Anime Scraper API',
-    version: '1.14.0',
+    version: '1.15.0',
     endpoints: {
       home: '/api/home',
       anime: '/api/anime/:id_mal',

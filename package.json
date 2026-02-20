@@ -17,6 +17,7 @@
     "elysia": "^1.0.0",
     "fastest-levenshtein": "^1.0.16",
     "megajs": "^1.3.9",
+    "natural": "^8.1.0",
     "string-similarity": "^4.0.4"
   },
   "devDependencies": {
