@@ -38,7 +38,20 @@ npm run dev
 npx wrangler login
 ```
 
-### 2. Deploy ke Production
+### 2. Setup GitHub Token (Required for Private Repos)
+
+Karena repository video storage sekarang private, Cloudflare Workers perlu GitHub token untuk mengakses video files:
+
+```bash
+# Deploy GitHub token sebagai secret ke Workers
+npx wrangler secret put GITHUB_STORAGE_TOKEN
+```
+
+Saat diminta, masukkan GitHub Personal Access Token dengan scope `repo` (contoh: `ghp_...`).
+
+**Catatan:** Token ini HARUS sama dengan token yang digunakan di GitHub Action `STORAGE_ACCOUNTS`.
+
+### 3. Deploy ke Production
 
 ```bash
 npm run deploy
@@ -50,14 +63,14 @@ Published anime-video-proxy (1.23 sec)
   https://anime-video-proxy.your-subdomain.workers.dev
 ```
 
-### 3. Update Main API .env
+### 4. Update Main API .env
 
 ```bash
 # Di root project (bukan di workers/)
 echo "WORKER_VIDEO_PROXY_URL=https://anime-video-proxy.your-subdomain.workers.dev" >> .env
 ```
 
-### 4. Restart API Server
+### 5. Restart API Server
 
 ```bash
 # Di root project
@@ -95,6 +108,7 @@ curl -H "Range: bytes=0-1000" "https://anime-video-proxy.your-subdomain.workers.
 | MP4Upload | SSL Bypass + Referer | ✅ Working |
 | Mega.nz | Direct stream | ✅ Working |
 | VidHidePro | HLS Proxy | ⚠️ Requires session |
+| **GitHub Releases** | **Private Repo** | **✅ With Token** |
 
 ## Architecture
 
@@ -114,6 +128,14 @@ Client receives video stream
 **Error: 403 Forbidden**
 - VidHidePro: Requires browser session (not supported)
 - MP4Upload: Workers handles Referer header automatically
+- **GitHub Private Repo**: Token belum di-setup atau expired
+  - Solution: `npx wrangler secret put GITHUB_STORAGE_TOKEN`
+  - Pastikan token memiliki scope `repo`
+
+**Error: 401 Unauthorized (GitHub)**
+- GitHub token tidak valid atau expired
+- Solution: Generate new token di GitHub Settings → Developer settings → Personal access tokens
+- Deploy ulang: `npx wrangler secret put GITHUB_STORAGE_TOKEN`
 
 **Error: Worker exceeded CPU limit**
 - Solution: Video proxy is lightweight, should not happen

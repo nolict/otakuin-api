@@ -1,5 +1,9 @@
+interface Env {
+  GITHUB_STORAGE_TOKEN?: string;
+}
+
 export default {
-  async fetch(request: Request): Promise<Response> {
+  async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const videoUrl = url.searchParams.get('url');
 
@@ -11,6 +15,10 @@ export default {
       const headers: Record<string, string> = {
         Accept: '*/*'
       };
+
+      if (videoUrl.includes('github.com') && env.GITHUB_STORAGE_TOKEN) {
+        headers.Authorization = `token ${env.GITHUB_STORAGE_TOKEN}`;
+      }
 
       if (videoUrl.includes('mp4upload.com')) {
         headers.Referer = 'https://www.mp4upload.com/';
