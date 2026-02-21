@@ -3,7 +3,7 @@ import { logger } from '../../utils/logger';
 
 import type { AnimeDetailScraped, AnimeMetadata, Episode, ScraperResult } from '../../types/anime';
 
-const SAMEHADAKU_BASE_URL = 'https://v1.samehadaku.how';
+const SAMEHADAKU_BASE_URL = process.env.SAMEHADAKU_BASE_URL ?? 'https://v1.samehadaku.how';
 
 function parseSeasonYear(seasonStr: string): { season?: string; year?: number } {
   const normalized = seasonStr.toLowerCase().trim();

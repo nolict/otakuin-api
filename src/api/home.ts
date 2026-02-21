@@ -51,4 +51,19 @@ export const homeRoute = new Elysia({ prefix: '/api' })
         total_pages: totalPages
       }
     };
+  }, {
+    detail: {
+      tags: ['Home'],
+      summary: 'Get latest anime list',
+      description: 'Returns paginated list of latest anime from Samehadaku and Animasu, normalized with MyAnimeList data. Results are cached for 6 hours.',
+      parameters: [
+        {
+          name: 'page',
+          in: 'query',
+          required: false,
+          schema: { type: 'integer', default: 1 },
+          description: 'Page number for pagination'
+        }
+      ]
+    }
   });

@@ -3,7 +3,7 @@ import { logger } from '../../utils/logger';
 
 import type { AnimeDetailScraped, AnimeMetadata, Episode, ScraperResult } from '../../types/anime';
 
-const ANIMASU_BASE_URL = 'https://v0.animasu.app';
+const ANIMASU_BASE_URL = process.env.ANIMASU_BASE_URL ?? 'https://v0.animasu.app';
 
 function parseSeasonYear(seasonStr: string): { season?: string; year?: number } {
   const normalized = seasonStr.toLowerCase().trim();

@@ -243,4 +243,20 @@ export const videoRoute = new Elysia({ prefix: '/api' })
       set.status = 500;
       return { error: 'Failed to stream video' };
     }
+  }, {
+    detail: {
+      tags: ['Video'],
+      summary: 'Stream video by code',
+      description: 'Direct video streaming endpoint using short codes. Supports multiple providers (WibuFile, Filedon, BerkasDrive, MP4Upload, Mega.nz). Includes range request support for video seeking. Codes expire after 24 hours.',
+      parameters: [
+        {
+          name: 'code',
+          in: 'path',
+          required: true,
+          schema: { type: 'string' },
+          description: 'Unique video code from streaming endpoint',
+          example: 'abc123'
+        }
+      ]
+    }
   });

@@ -2,7 +2,8 @@ import { fetchHTML, parseDOM } from '../../utils/dom-parser';
 
 import type { AnimeItem, ScraperResult } from '../../types/anime';
 
-const ANIMASU_HOME_URL = 'https://v1.animasu.app/anime-sedang-tayang-terbaru/';
+const ANIMASU_BASE_URL = process.env.ANIMASU_BASE_URL ?? 'https://v0.animasu.app';
+const ANIMASU_HOME_URL = `${ANIMASU_BASE_URL}/anime-sedang-tayang-terbaru/`.replace('v0.', 'v1.');
 
 function extractAnimeSlug(url: string): string {
   try {

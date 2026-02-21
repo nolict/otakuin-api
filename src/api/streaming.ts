@@ -8,8 +8,8 @@ import { logger } from '../utils/logger';
 
 import type { StreamingLink } from '../types/streaming';
 
-export const streamingRoutes = new Elysia({ prefix: '/api/streaming' })
-  .get('/:id/:episode', async ({ params, set }) => {
+export const streamingRoutes = new Elysia({ prefix: '/api' })
+  .get('/streaming/:id/:episode', async ({ params, set }) => {
     try {
       const malId = parseInt(params.id, 10);
       const episode = parseInt(params.episode, 10);

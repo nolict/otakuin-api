@@ -3,7 +3,8 @@ import { logger } from '../../utils/logger';
 
 import type { AnimeItem, ScraperResult } from '../../types/anime';
 
-const SAMEHADAKU_HOME_URL = 'https://v1.samehadaku.how/anime-terbaru/';
+const SAMEHADAKU_BASE_URL = process.env.SAMEHADAKU_BASE_URL ?? 'https://v1.samehadaku.how';
+const SAMEHADAKU_HOME_URL = `${SAMEHADAKU_BASE_URL}/anime-terbaru/`;
 
 // In-memory cache for enriched home page results
 // Cache expires after 5 minutes to keep data fresh
@@ -23,7 +24,7 @@ function extractAnimeSlug(url: string): string {
 
 async function extractFullTitleFromDetailPage(slug: string): Promise<string | null> {
   try {
-    const detailUrl = `https://v1.samehadaku.how/anime/${slug}/`;
+    const detailUrl = `${SAMEHADAKU_BASE_URL}/anime/${slug}/`;
     const html = await fetchHTML(detailUrl);
     const $ = parseDOM(html);
 

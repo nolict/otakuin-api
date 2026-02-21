@@ -14,8 +14,8 @@ import { scrapeSamehadakuStreaming } from '../scrapers/samehadaku-streaming.scra
 
 import type { SavedVideo, StreamingLink, StreamingResponse } from '../../types/streaming';
 
-const ANIMASU_BASE_URL = 'https://v0.animasu.app/nonton-';
-const SAMEHADAKU_BASE_URL = 'https://v1.samehadaku.how/';
+const ANIMASU_BASE_URL = `${process.env.ANIMASU_BASE_URL ?? 'https://v0.animasu.app'}/nonton-`;
+const SAMEHADAKU_BASE_URL = `${process.env.SAMEHADAKU_BASE_URL ?? 'https://v1.samehadaku.how'}/`;
 const WORKER_VIDEO_PROXY_URL = process.env.WORKER_VIDEO_PROXY_URL ?? '';
 const PRIMARY_STORAGE_ACCOUNT = process.env.PRIMARY_STORAGE_ACCOUNT ?? 'storage-account-1';
 

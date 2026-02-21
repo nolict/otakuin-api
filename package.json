@@ -1,5 +1,5 @@
 {
-  "name": "anime-scraper-api",
+  "name": "otakuin-api",
   "version": "0.2.0",
   "description": "Modular API scraping ecosystem for anime content",
   "type": "module",
@@ -8,10 +8,12 @@
     "start": "bun run src/index.ts",
     "scan": "bun run src/scripts/scan.ts",
     "lint": "eslint . --ext .ts",
-    "lint:fix": "eslint . --ext .ts --fix"
+    "lint:fix": "eslint . --ext .ts --fix",
+    "docs": "bun run src/scripts/generate-docs.ts"
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.1",
+    "@elysiajs/swagger": "^1.3.1",
     "@supabase/supabase-js": "^2.93.3",
     "cheerio": "^1.0.0-rc.12",
     "elysia": "^1.0.0",
