@@ -31,6 +31,7 @@ export interface VideoStorageItem {
   file_size_bytes?: number | null;
   release_tag: string;
   github_urls: GitHubStorageUrl[];
+  github_asset_ids?: GitHubAssetId[];
   created_at?: string;
   updated_at?: string;
 }
@@ -40,6 +41,12 @@ export interface GitHubStorageUrl {
   username: string;
   repo_name: string;
   url: string;
+}
+
+export interface GitHubAssetId {
+  account: string;
+  asset_id: number;
+  repo: string;
 }
 
 export interface GitHubStorageAccount {

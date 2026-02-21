@@ -16,7 +16,14 @@ export default {
         Accept: '*/*'
       };
 
-      if (videoUrl.includes('github.com') && env.GITHUB_STORAGE_TOKEN) {
+      // For GitHub API URLs with asset_id (api.github.com/repos/{owner}/{repo}/releases/assets/{id})
+      if (videoUrl.includes('api.github.com/repos') && videoUrl.includes('/releases/assets/')) {
+        if (env.GITHUB_STORAGE_TOKEN) {
+          headers.Authorization = `token ${env.GITHUB_STORAGE_TOKEN}`;
+          headers.Accept = 'application/octet-stream';
+          headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
+        }
+      } else if (videoUrl.includes('github.com') && env.GITHUB_STORAGE_TOKEN) {
         headers.Authorization = `token ${env.GITHUB_STORAGE_TOKEN}`;
       }
 

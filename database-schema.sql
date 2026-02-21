@@ -419,6 +419,7 @@ CREATE TABLE IF NOT EXISTS video_storage (
   file_size_bytes BIGINT,
   release_tag VARCHAR(100) NOT NULL,
   github_urls JSONB NOT NULL,
+  github_asset_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(mal_id, episode, resolution, server)
@@ -444,6 +445,7 @@ COMMENT ON COLUMN video_storage.file_name IS 'Obfuscated file name on GitHub';
 COMMENT ON COLUMN video_storage.file_size_bytes IS 'Video file size in bytes';
 COMMENT ON COLUMN video_storage.release_tag IS 'GitHub Release tag (e.g., anime-21 for One Piece)';
 COMMENT ON COLUMN video_storage.github_urls IS 'JSON array of download URLs from all accounts: [{"account": "storage-1", "url": "https://github.com/..."}]';
+COMMENT ON COLUMN video_storage.github_asset_ids IS 'JSON array of GitHub asset IDs for API access: [{"account": "storage-1", "asset_id": 123456, "repo": "owner/repo"}]';
 
 
 -- Update cleanup function to include new tables (video_queue old entries)

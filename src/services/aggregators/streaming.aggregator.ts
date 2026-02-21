@@ -212,30 +212,8 @@ async function enrichWithGitHubStorage(malId: number, episode: number, sources: 
 
   logger.info(`Found ${storedVideos.length} stored video(s) in GitHub storage`, { mal_id: malId, episode });
 
-  for (const source of sources) {
-    const serverNum = source.server !== undefined ? parseInt(source.server) : 1;
-    const matchedStorage = storedVideos.find(
-      v => v.resolution === source.resolution && v.server === serverNum
-    );
-
-    if (matchedStorage !== undefined) {
-      const primaryAccount = matchedStorage.github_urls.find(u => u.account === PRIMARY_STORAGE_ACCOUNT);
-      const fallbackUrl = matchedStorage.github_urls[0]?.url ?? null;
-      const githubUrl = primaryAccount?.url ?? fallbackUrl;
-
-      if (githubUrl !== null) {
-        source.url_video = githubUrl;
-        source.storage_type = 'github';
-
-        logger.info('Updated source with GitHub storage URL', {
-          resolution: source.resolution,
-          server: serverNum,
-          account: primaryAccount?.account ?? matchedStorage.github_urls[0]?.account,
-          file_name: matchedStorage.file_name
-        });
-      }
-    }
-  }
+  // No need to modify sources - just log that GitHub storage is available
+  // The saved_videos field will show GitHub URLs wrapped with Cloudflare Workers
 }
 
 async function enrichWithVideoUrls(sources: StreamingLink[]): Promise<void> {
@@ -334,15 +312,30 @@ async function getSavedVideosSimplified(malId: number, episode: number): Promise
   }
 
   return storedVideos.map(video => {
-    const primaryAccount = video.github_urls.find(u => u.account === PRIMARY_STORAGE_ACCOUNT);
-    const fallbackUrl = video.github_urls[0]?.url ?? '';
-    const rawUrl = primaryAccount?.url ?? fallbackUrl;
+    // Use asset_id API URL for private repos (faster & reliable)
+    const primaryAsset = video.github_asset_ids?.find((a: { account: string }) => a.account === PRIMARY_STORAGE_ACCOUNT);
+    const fallbackAsset = video.github_asset_ids?.[0];
+    const assetData = primaryAsset ?? fallbackAsset;
+
+    let apiUrl = '';
+    if (assetData && assetData.asset_id && assetData.repo) {
+      // Format: https://api.github.com/repos/{owner}/{repo}/releases/assets/{asset_id}
+      apiUrl = `https://api.github.com/repos/${assetData.repo}/releases/assets/${assetData.asset_id}`;
+    } else {
+      // Fallback to browser_download_url (for old data without asset_ids)
+      const primaryAccount = video.github_urls.find((u: { account: string }) => u.account === PRIMARY_STORAGE_ACCOUNT);
+      const fallbackUrl = video.github_urls[0]?.url ?? '';
+      apiUrl = primaryAccount?.url ?? fallbackUrl;
+    }
+
+    // Wrap with Cloudflare Workers
+    const cloudflareUrl = wrapWithWorkerProxy(apiUrl);
 
     return {
       file_name: video.file_name,
       resolution: video.resolution,
       file_size: video.file_size_bytes,
-      url: rawUrl
+      url: cloudflareUrl ?? apiUrl // Fallback to raw if wrapping fails
     };
   });
 }

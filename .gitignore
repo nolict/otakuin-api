@@ -9,3 +9,7 @@ tmp_rovodev_*
 
 # GitHub Action Worker Project (separate development)
 github-action-worker/
+
+# Development Scripts (sensitive data - storage account tokens)
+scripts/storage-accounts.json
+scripts/delete-all-anime-repos.js
